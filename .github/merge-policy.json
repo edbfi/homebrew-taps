@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "enabled": true,
+  "ci_workflow": "ci.yml",
+  "required_checks": [
+    "guard",
+    "quality / shell checks and offline updater fixtures",
+    "quality / brew style + audit",
+    "linux / prepare",
+    "linux / build (ubuntu-24.04-arm, arm64_linux)",
+    "linux / build (ubuntu-24.04, x86_64_linux)",
+    "linux / verify",
+    "ci / required"
+  ],
+  "optional_checks": [],
+  "check_app_id": 15368,
+  "renovate": {
+    "login": "renovate[bot]",
+    "id": 29139614
+  },
+  "renovate_comment": "/merge-when-green",
+  "minimum_approvals": 0,
+  "deploy_workflows": []
+}
