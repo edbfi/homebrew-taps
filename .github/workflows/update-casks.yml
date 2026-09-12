@@ -33,8 +33,8 @@ jobs:
         EXPECTED_SHA: ${{ github.sha }}
       run: |
         set -euo pipefail
-        gh run list --workflow ci.yml --branch main --event push --commit "$EXPECTED_SHA" \
-          --json conclusion --jq 'any(.[]; .conclusion == "success")' | grep -qx true
+        gh run list --workflow ci.yml --branch main --commit "$EXPECTED_SHA" \
+          --json conclusion,event,status --jq 'map(select(.event == "push" or .event == "workflow_dispatch")) | first | .status == "completed" and .conclusion == "success"' | grep -qx true
     - name: Build matrix from pipelines/
       id: discover
       env:

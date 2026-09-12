@@ -5,7 +5,8 @@ aggregate depends on the complete native cask and shell validation workflow;
 missing, failed, skipped or cancelled lanes cannot pass. Generated PR dispatches
 verify their live head before and after CI. Review all jobs and exact head/base, author/DCO and relevant artifacts before
 merging through the maintainer ghmerge function. No branch protections or
-rulesets are configured; automerge remains disabled.
+rulesets are configured. Renovate dependency updates use checked unattended merging
+after all required CI passes; other changes retain manual review.
 
 The existing `brew readall --no-simulate`, `brew style` and `brew audit --cask`
 checks run against the exact PR checkout on macOS 15 ARM64. The Linux lane runs
@@ -26,11 +27,14 @@ keepalive run only on the configured default branch. The dedicated edbfi WORKFLO
 keepalive and optional VirusTotal configuration are preserved. Manual CI recovery
 inputs are printed if dispatch fails. Cask versions, checksums, resolver rules, existing release assets and vendored
 keepalive source are preserved. The updater checks out its exact triggering
-revision and requires a successful main-push CI run for that SHA before publishing.
+revision and requires the newest main CI run for that SHA to have completed
+successfully, whether triggered by a push or an explicit dispatch.
 
 The versioned `edbfi/automation` preset replaces unconditional major automerge
-and `ignoreTests: true`. Full action version tags are bot-managed; automerge stays
-off pending the shared pre-1.0 policy correction and activation. Renovate's
+and `ignoreTests: true`. Full action version tags are bot-managed. The v1.1.0 automerge opt-in enables all
+update types, including shared-policy updates, without dashboard approval. The
+checked merge action preserves genuine sign-offs and dispatches exact-commit
+final CI; native GitHub automerge remains disabled. Renovate's
 Homebrew manager is disabled because the cask updater owns verified re-hosted
 versions/checksums. The macOS CI does not launch applications; the updater now inspects bundle identity
 and architectures before publication. VirusTotal remains optional. Published assets are preserved while cask PRs await manual review. The Linux integration adds reusable formulae.yml to the same required gate. It
