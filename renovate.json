@@ -11,6 +11,40 @@
       ],
       "enabled": false,
       "description": "Cask versions and hashes are owned by the verified download/re-hosting pipeline."
+    },
+    {
+      "description": "The built-in action manager truncates four-part Homebrew tags; the scoped regex manager below owns these pins.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackageNames": [
+        "Homebrew/actions"
+      ],
+      "enabled": false
+    },
+    {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "Homebrew/actions"
+      ],
+      "pinDigests": true
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/formulae\\.yml$/"
+      ],
+      "matchStrings": [
+        "Homebrew/actions/setup-homebrew@(?<currentDigest>[a-f0-9]{40}) # (?<currentValue>\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d+)"
+      ],
+      "depNameTemplate": "Homebrew/actions",
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "loose",
+      "autoReplaceStringTemplate": "Homebrew/actions/setup-homebrew@{{{newDigest}}} # {{{newValue}}}"
     }
   ]
 }
