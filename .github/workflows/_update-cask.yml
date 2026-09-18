@@ -96,6 +96,7 @@ jobs:
         branch: fix/update-cask-${{ inputs.cask }}
         add-paths: ${{ steps.resolve.outputs.cask_file }}
         commit-message: 'chore(${{ inputs.cask }}): update to ${{ steps.resolve.outputs.version }}'
+        author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
         signoff: true
         title: 'chore(${{ inputs.cask }}): update to ${{ steps.resolve.outputs.version }}'
         body: Update the machine-owned version and checksum after resolving the upstream release, downloading
