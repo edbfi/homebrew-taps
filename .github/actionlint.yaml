@@ -1,0 +1,4 @@
+# Hosted runner label already used and validated by this repository.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

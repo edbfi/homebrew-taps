@@ -9,7 +9,7 @@ rulesets are configured. Renovate dependency updates use checked unattended merg
 after all required CI passes; other changes retain manual review.
 
 The existing `brew readall --no-simulate`, `brew style` and `brew audit --cask`
-checks run against the exact PR checkout on macOS 15 ARM64. The Linux lane runs
+checks run against the exact PR checkout on macOS 26 ARM64. The Linux lane runs
 Bash syntax, ShellCheck and five Python fixtures exercising the real rewrite and
 discovery scripts: Ruby-valid updates, unsafe version/hash rejection, missing
 rewrite anchors, and one-to-one cask/pipeline discovery. Run
@@ -20,9 +20,15 @@ Linux syntax/fixture checks are not a substitute for the macOS result.
 The existing sequential updater still resolves/downloads/hashes upstream assets,
 publishes rolling releases and optionally reports VirusTotal results. It now
 proposes only the generated cask on `fix/update-cask-<token>` and explicitly
-runs full CI for that PR's exact SHA. Enable **Allow GitHub Actions to create and
-approve pull requests**; the repository token needs contents, pull-requests and
-actions write permissions in the publisher only. The scheduled updater and
+runs full CI for that PR's exact SHA. `CASK_PUBLISHER_TOKEN` is a dedicated
+fine-grained token restricted to `edbfi/homebrew-taps`, with Contents and Pull
+requests read/write and Metadata read. Only the final create-pull-request step
+receives it, so branch publication triggers normal PR CI without the recurring
+GITHUB_TOKEN approval gate. The reusable publisher requires this secret and has
+no fallback. The repository token continues to handle reads, release publication
+and the guarded full-CI dispatch. Both publisher jobs are restricted to the
+trusted default branch; PR execution never receives the publishing credential.
+The scheduled updater and
 keepalive run only on the configured default branch. The dedicated edbfi WORKFLOW_KEEPALIVE_TOKEN-backed
 keepalive and optional VirusTotal configuration are preserved. Manual CI recovery
 inputs are printed if dispatch fails. Cask versions, checksums, resolver rules, existing release assets and vendored
