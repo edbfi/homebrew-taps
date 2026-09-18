@@ -36,7 +36,7 @@ jobs:
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
   scripts:
     name: shell checks and offline updater fixtures
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
     - uses: actions/checkout@v7.0.1

@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   prepare:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       build: ${{ steps.sources.outputs.build }}
     steps:
@@ -139,7 +139,7 @@ jobs:
 
   verify:
     needs: [prepare, build]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
       BOTTLE_ROOT: https://github.com/${{ github.repository }}/releases/download/formulae-${{ github.run_id }}-${{ github.run_attempt }}
