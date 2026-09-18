@@ -10,7 +10,7 @@ cask "fcast-sender" do
   homepage "https://fcast.org/"
 
   depends_on arch: :arm64
-  depends_on macos: :big_sur
+  depends_on :macos
 
   app "FCast Sender.app"
 
