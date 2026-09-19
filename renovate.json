@@ -29,12 +29,6 @@
         "Homebrew/actions"
       ],
       "pinDigests": true
-    },
-    {
-      "matchPackageNames": [
-        "*"
-      ],
-      "automerge": false
     }
   ],
   "customManagers": [
@@ -52,7 +46,9 @@
       "autoReplaceStringTemplate": "Homebrew/actions/setup-homebrew@{{{newDigest}}} # {{{newValue}}}"
     }
   ],
-  "automerge": false,
+  "automerge": true,
   "platformAutomerge": false,
-  "ignoreTests": false
+  "ignoreTests": false,
+  "automergeStrategy": "rebase",
+  "automergeType": "pr"
 }
