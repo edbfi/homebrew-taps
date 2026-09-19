@@ -4,9 +4,21 @@ Every pull request and default-branch push runs `ci`. The required `ci / require
 aggregate depends on the complete native cask and shell validation workflow;
 missing, failed, skipped or cancelled lanes cannot pass. Generated PR dispatches
 verify their live head before and after CI. Review all jobs and exact head/base, author/DCO and relevant artifacts before
-merging through the maintainer ghmerge function. No branch protections or
-rulesets are configured. Renovate dependency updates use checked unattended merging
-after all required CI passes; other changes retain manual review.
+merging. Shared actions, workflows and presets use immutable `v3.0.1` references.
+Renovate is the sole ongoing dependency merge owner. Direct automerge remains
+explicitly disabled, including matching package rules, until the hosted rollout
+proves native Renovate operation behind complete required CI. The legacy Actions
+merger and its comment commands are retired.
+
+The separate PR policy workflow verifies Conventional Commit titles, genuine
+matching author sign-offs, Renovate provenance, holds, outstanding review requests
+and unresolved changes requests. Require its actual emitted policy context alongside
+all existing application/content checks, pinned to GitHub Actions, with strict
+up-to-date branch protection. Preserve stronger review requirements. Explicit CI
+dispatches do not substitute for a missing metadata policy result. Review exact
+head/base, full diffs and all required results before a bootstrap merge, then
+verify resulting default-branch CI. Repository-specific updater ownership and
+manual publication or delivery controls remain unchanged.
 
 The existing `brew readall --no-simulate`, `brew style` and `brew audit --cask`
 checks run against the exact PR checkout on macOS 26 ARM64. The Linux lane runs
@@ -36,12 +48,7 @@ keepalive source are preserved. The updater checks out its exact triggering
 revision and requires the newest main CI run for that SHA to have completed
 successfully, whether triggered by a push or an explicit dispatch.
 
-The versioned `edbfi/automation` preset replaces unconditional major automerge
-and `ignoreTests: true`. Full action version tags are bot-managed. The v1.1.0 automerge opt-in enables all
-update types, including shared-policy updates, without dashboard approval. The
-checked merge action preserves genuine sign-offs and dispatches exact-commit
-final CI; native GitHub automerge remains disabled. Renovate's
-Homebrew manager is disabled because the cask updater owns verified re-hosted
+Renovate's Homebrew manager is disabled because the cask updater owns verified re-hosted
 versions/checksums. The macOS CI does not launch applications; the updater now inspects bundle identity
 and architectures before publication. VirusTotal remains optional. Published assets are preserved while cask PRs await manual review. The Linux integration adds reusable formulae.yml to the same required gate. It
 builds all four source formulae on native Ubuntu ARM64 and x86_64, runs linkage,
