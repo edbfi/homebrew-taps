@@ -14,6 +14,7 @@ APPS = {
     "flixor": ("FlixorMac.app", "com.flixor.mac", {"arm64", "x86_64"}),
     "fredtv": ("Fred TV.app", "dev.fredol.open-tv", {"arm64", "x86_64"}),
     "paicord": ("Paicord.app", "com.llsc12.Paicord", {"arm64", "x86_64"}),
+    "qbittorrent": ("qbittorrent.app", "org.qbittorrent.qBittorrent", {"arm64", "x86_64"}),
     "qview": ("qView.app", "com.interversehq.qView", {"arm64", "x86_64"}),
 }
 
