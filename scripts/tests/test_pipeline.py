@@ -145,6 +145,75 @@ print(status, end="")
                               [200, {"tag_name": "7.1", "assets": [{"name": "qView-7.1-legacy.dmg"}]}]})
         self.assertNotEqual(result.returncode, 0)
 
+    def qbittorrent_release(self, **overrides):
+        name = "qbittorrent-5.2.3.dmg"
+        return {"tag_name": "release-5.2.3", "draft": False, "prerelease": False,
+                "assets": [{"name": name, "browser_download_url":
+                            f"https://github.com/qbittorrent/qBittorrent/releases/download/release-5.2.3/{name}"}],
+                **overrides}
+
+    def resolve_qbittorrent(self, release, status=200):
+        return self.resolve("qbittorrent", {
+            "https://api.github.com/repos/qbittorrent/qBittorrent/releases/latest": [status, release],
+        })
+
+    def test_qbittorrent_selects_standard_desktop_dmg(self):
+        release = self.qbittorrent_release()
+        release["assets"] += [{"name": name} for name in (
+            "qbittorrent-5.2.3_lt20.dmg", "qbittorrent-5.2.3.dmg.asc",
+            "qbittorrent-5.2.3.tar.xz", "qbittorrent-5.2.3_x86_64.AppImage",
+            "qbittorrent_5.2.3_x64_setup.exe")]
+        result = self.resolve_qbittorrent(release)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        fields = dict(line.split("=", 1) for line in result.stdout.splitlines())
+        self.assertEqual(fields["version"], "5.2.3")
+        self.assertEqual(fields["download_url"], release["assets"][0]["browser_download_url"])
+        self.assertEqual(fields["ref"], "release-5.2.3")
+        self.assertEqual(fields["changes_url"], "https://github.com/qbittorrent/qBittorrent/releases/tag/release-5.2.3")
+        self.assertEqual(fields["asset"], "qBittorrent-5.2.3.dmg")
+        self.assertEqual(fields["release_tag"], "qbittorrent-latest")
+        self.assertEqual(fields["cask_file"], "Casks/network/qbittorrent.rb")
+
+    def test_qbittorrent_rejects_unsafe_or_unstable_releases(self):
+        for tag in ("", "v5.2.3", "release-5.2", "release-5.3.0beta1",
+                    "release-5.2.3/evil", 'release-5.2.3\";system(\"bad\")'):
+            with self.subTest(tag=tag):
+                result = self.resolve_qbittorrent(self.qbittorrent_release(tag_name=tag))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Unexpected upstream tag", result.stderr)
+        for flag in ("draft", "prerelease"):
+            with self.subTest(flag=flag):
+                result = self.resolve_qbittorrent(self.qbittorrent_release(**{flag: True}))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("stable published release", result.stderr)
+
+    def test_qbittorrent_rejects_missing_or_duplicate_standard_dmg(self):
+        release = self.qbittorrent_release()
+        for assets in ([], [{"name": "qbittorrent-5.2.3_lt20.dmg"}], release["assets"] * 2):
+            with self.subTest(assets=assets):
+                result = self.resolve_qbittorrent({**release, "assets": assets})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Expected exactly one", result.stderr)
+
+    def test_qbittorrent_rejects_unexpected_download_url(self):
+        for url in (None, "https://example.org/qbittorrent-5.2.3.dmg",
+                    "https://github.com/qbittorrent/qBittorrent/releases/download/release-5.2.2/qbittorrent-5.2.3.dmg",
+                    "https://github.com/qbittorrent/qBittorrent/releases/download/release-5.2.3/qbittorrent-5.2.3_lt20.dmg"):
+            with self.subTest(url=url):
+                release = self.qbittorrent_release()
+                release["assets"][0]["browser_download_url"] = url
+                result = self.resolve_qbittorrent(release)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Unexpected DMG download URL", result.stderr)
+
+    def test_qbittorrent_missing_release_skips_but_api_failure_does_not(self):
+        result = self.resolve_qbittorrent({}, status=404)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "skip=true")
+        result = self.resolve_qbittorrent({}, status=403)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("HTTP 403", result.stderr)
+
     def test_fredtv_rejects_nonuniversal_asset(self):
         result = self.resolve("fredtv", {"https://api.github.com/repos/Fredolx/open-tv/releases/latest":
                               [200, {"tag_name": "v1.9.1", "assets": [{"name": "Fred.TV_1.9.1_arm64.dmg"}]}]})
@@ -193,7 +262,9 @@ print(status, end="")
     def test_discovery_separates_kinds(self):
         casks = subprocess.check_output(["bash", str(ROOT / "scripts/discover.sh")], text=True)
         formulae = subprocess.check_output(["bash", str(ROOT / "scripts/discover.sh"), "", "formula"], text=True)
-        self.assertEqual(len(json.loads(casks)["cask"]), 5)
+        self.assertEqual(set(json.loads(casks)["cask"]),
+                         {"fcast-sender", "flixor", "fredtv", "paicord", "qbittorrent", "qview"})
+        self.assertEqual(set(module("inspect-macos").APPS), set(json.loads(casks)["cask"]))
         self.assertEqual(set(json.loads(formulae)["formula"]), {"qview", "fredtv", "fcast-sender", "pipewire-gstreamer"})
 
     def test_discovery_does_not_hide_missing_package_files(self):

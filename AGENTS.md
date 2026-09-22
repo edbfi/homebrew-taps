@@ -94,7 +94,7 @@ validates the workflows. `lint.yml` runs the same native checks behind the unfil
   path keys off those. Verify against an installed build before editing.
 - **fcast-sender has no `postflight_steps` quarantine strip by design** (signed and
   notarized) and `depends_on arch: :arm64` because upstream ships aarch64 only. The
-  other four casks strip `com.apple.quarantine` with `must_succeed: false`; keep that.
+  other casks strip `com.apple.quarantine` with `must_succeed: false`; keep that.
 - **Step outputs enter shell only through `env:`.** Never interpolate `${{ }}` inside
   a `run:` block; the old flixor and paicord workflows did and it was a script
   injection path.

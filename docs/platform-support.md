@@ -6,9 +6,8 @@
 
 # Platform support and validation
 
-Original assessment: September 2026. This tap packages the five applications
-listed below; adding different applications or substituting their native variants
-is outside this change. Historical validation establishes only the stated scope.
+Original assessment: September 2026, with qBittorrent added on 22 September 2026.
+Historical validation establishes only the stated scope.
 
 ## Compatibility decisions
 
@@ -23,6 +22,7 @@ compatibility. Linux formulae deliberately reject macOS; use the existing casks.
 | Fred TV 1.9.1 | Support universal cask; install missing external media tools | Support source-only formula with Node 20, Rust/Tauri, GTK3/WebKitGTK 4.1 and media tools | [Pinned source/build configuration](https://github.com/Fredolx/open-tv/tree/v1.9.1) supports Linux. Binary redistribution needs GPL-2.0/OpenSSL 3 clarification; the formula builds locally. It embeds the Angular frontend and wraps `mpv`, `ffmpeg`, `yt-dlp` paths. Node 20 matches Angular 17; an upstream frontend toolchain upgrade is needed before removing that build dependency. |
 | Paicord 2026-08-05-473c780 | Support universal cask, macOS 14+ | Retain restriction | [Source](https://github.com/llsc12/Paicord) and build workflow package a SwiftUI macOS app; Linux support is unfinished upstream. The resolver now binds a successful build run to its immutable release tag, exact asset and source commit. |
 | qView 7.1 | Support universal cask, macOS 12+ | Support native Qt 6 formula | [Release source](https://github.com/jurplel/qView/tree/7.1) uses qmake (current development uses a different build system). Reuse core Qt base, SVG, image-format and Wayland packages. Validate real image decoding, not just `--version`. |
+| qBittorrent 5.2.3 | Universal desktop cask, macOS 13+ | Not packaged by this tap | The standard [upstream DMG](https://github.com/qbittorrent/qBittorrent/releases/tag/release-5.2.3) contains `qbittorrent.app` / `org.qbittorrent.qBittorrent`. Read-only inspection verified ARM64 and x86_64 in every Mach-O file and `LSMinimumSystemVersion=13.0`. Intel launch and torrent transfers remain untested. |
 
 FCast's canonical repository is [FUTO GitLab](https://gitlab.futo.org/videostreaming/fcast).
 The formula pins an immutable commit archive from its GitHub mirror.
@@ -37,7 +37,7 @@ app minimum OS does not guarantee a supported Homebrew installation.
 
 The original premise that casks are categorically macOS-only is no longer true
 in current Homebrew: its [cask DSL](https://docs.brew.sh/Cask-Cookbook) includes
-Linux/AppImage support. These five existing definitions remain macOS app-bundle
+Linux/AppImage support. These tap definitions remain macOS app-bundle
 casks. Native Linux formulae are appropriate here because the selected source
 variants build against Homebrew libraries, have normal launch commands and
 desktop files, and can receive independently tested bottles for both architectures.
@@ -68,7 +68,19 @@ Feature acceptance adds the following manual checks:
 
 ### Evidence collected
 
-- All five current tap DMGs were downloaded and checked against their declared
+- qBittorrent 5.2.3 was added on 22 September 2026 using the shared resolver,
+  download, bundle-inspection, release-notes and publisher scripts locally: the
+  Actions publisher intentionally requires a successfully checked `main` revision,
+  where the new cask does not exist until merge. The publisher downloaded the
+  [re-hosted DMG](https://github.com/edbfi/homebrew-taps/releases/tag/qbittorrent-latest)
+  back and verified byte equality. `write-cask.sh` generated the initial version
+  and SHA-256 from the resolved release and a fresh download of the hosted asset.
+  Homebrew installed it into a temporary application directory on macOS 26.6.2
+  ARM64. Recursive inspection confirmed no quarantine attributes remained, and
+  LaunchServices started it with a disposable profile without a manual Gatekeeper
+  override. This was a launch smoke check, not a torrent-transfer test. Intel
+  runtime behavior and VirusTotal scanning were not tested during bootstrap.
+- All five original tap DMGs were downloaded and checked against their declared
   SHA256. `scripts/inspect-macos.py` verified actual bundle identifiers and every
   included Mach-O architecture. FCast's main executable is ARM64 only; the other
   four bundles are universal. No cask version or checksum was manually changed.
