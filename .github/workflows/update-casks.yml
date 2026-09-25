@@ -15,7 +15,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
-  actions: write
+  actions: read
 jobs:
   discover:
     runs-on: ubuntu-26.04
