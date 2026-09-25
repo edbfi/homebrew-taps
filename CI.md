@@ -2,20 +2,21 @@
 
 Every pull request and default-branch push runs `ci`. The required `ci / required`
 aggregate depends on the complete native cask and shell validation workflow;
-missing, failed, skipped or cancelled lanes cannot pass. Generated PR dispatches
-verify their live head before and after CI. Review all jobs and exact head/base, author/DCO and relevant artifacts before
-merging. Shared actions, workflows and presets use immutable `v3.0.1` references.
-Renovate is the sole ongoing dependency merge owner. It merges eligible dependency
-PRs by rebasing only after current required CI and policy checks pass. Native
-platform automerge stays off. Shared Renovate policy updates remain manual;
+missing, failed, skipped or cancelled lanes cannot pass. Review all jobs and exact
+head/base, author/DCO and relevant artifacts before merging. Shared actions,
+workflows and presets use immutable `v4.0.0` references. Renovate is the sole
+dependency merger: the shared `automerge.json` preset arms GitHub auto-merge with
+rebase merges, and GitHub merges only once every required CI and policy check
+passes on the current head. Shared Renovate policy updates remain manual;
 release-age rules, holds and repository-specific updater ownership still apply.
 The legacy Actions merger and its comment commands are retired.
 
 The separate PR policy workflow verifies Conventional Commit titles, genuine
 matching author sign-offs, Renovate provenance, holds, outstanding review requests
-and unresolved changes requests. Require its actual emitted policy context alongside
-all existing application/content checks, pinned to GitHub Actions, with strict
-up-to-date branch protection. Preserve stronger review requirements. Explicit CI
+and unresolved changes requests. After a pass, it re-runs the other event's older
+failed verdict for the same head, which needs `actions: write`. Require its actual
+emitted policy context alongside all existing application/content checks, pinned
+to GitHub Actions, with strict up-to-date branch protection. Preserve stronger review requirements. Explicit CI
 dispatches do not substitute for a missing metadata policy result. Review exact
 head/base, full diffs and all required results before a bootstrap merge, then
 verify resulting default-branch CI. Repository-specific updater ownership and
@@ -32,22 +33,21 @@ Linux syntax/fixture checks are not a substitute for the macOS result.
 
 The existing sequential updater still resolves/downloads/hashes upstream assets,
 publishes rolling releases and optionally reports VirusTotal results. It now
-proposes only the generated cask on `fix/update-cask-<token>` and explicitly
-runs full CI for that PR's exact SHA. `CASK_PUBLISHER_TOKEN` is a dedicated
-fine-grained token restricted to `edbfi/homebrew-taps`, with Contents and Pull
-requests read/write and Metadata read. Only the final create-pull-request step
-receives it, so branch publication triggers normal PR CI without the recurring
-GITHUB_TOKEN approval gate. The reusable publisher requires this secret and has
-no fallback. The repository token continues to handle reads, release publication
-and the guarded full-CI dispatch. Both publisher jobs are restricted to the
-trusted default branch; PR execution never receives the publishing credential.
-The scheduled updater and
-keepalive run only on the configured default branch. The dedicated edbfi WORKFLOW_KEEPALIVE_TOKEN-backed
-keepalive and optional VirusTotal configuration are preserved. Manual CI recovery
-inputs are printed if dispatch fails. Cask versions, checksums, resolver rules, existing release assets and vendored
-keepalive source are preserved. The updater checks out its exact triggering
-revision and requires the newest main CI run for that SHA to have completed
-successfully, whether triggered by a push or an explicit dispatch.
+proposes only the generated cask on `fix/update-cask-<token>`; nothing is
+dispatched. `CASK_PUBLISHER_TOKEN` is a dedicated fine-grained token restricted to
+`edbfi/homebrew-taps`, with Contents and Pull requests read/write and Metadata
+read. Only the final create-pull-request step receives it, so branch publication
+triggers normal PR CI without the recurring GITHUB_TOKEN approval gate. The
+reusable publisher requires this secret and has no fallback. The repository token
+continues to handle reads and release publication. Both publisher jobs are
+restricted to the trusted default branch; PR execution never receives the
+publishing credential. The scheduled updater and keepalive run only on the
+configured default branch. The dedicated edbfi WORKFLOW_KEEPALIVE_TOKEN-backed
+keepalive and optional VirusTotal configuration are preserved. Cask versions,
+checksums, resolver rules, existing release assets and vendored keepalive source
+are preserved. The updater checks out its exact triggering revision and requires
+the newest main CI run for that SHA to have completed successfully, whether
+triggered by a push or an explicit dispatch.
 
 Renovate's Homebrew manager is disabled because the cask updater owns verified re-hosted
 versions/checksums. The macOS CI does not launch applications; the updater now inspects bundle identity

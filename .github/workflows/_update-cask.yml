@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      actions: write
+      actions: read
     outputs:
       updated: ${{ steps.check.outputs.needed }}
       new_version: ${{ steps.resolve.outputs.version }}
@@ -94,7 +94,6 @@ jobs:
         SHA256: ${{ steps.fetch.outputs.sha256 }}
       run: bash scripts/write-cask.sh "$CASK_FILE" "$VERSION" "$SHA256"
     - name: Propose the generated cask update
-      id: cask-pr
       if: steps.resolve.outputs.skip != 'true' && steps.check.outputs.needed == 'true'
       uses: peter-evans/create-pull-request@v8.1.1
       with:
@@ -107,27 +106,9 @@ jobs:
         signoff: true
         title: 'chore(${{ inputs.cask }}): update to ${{ steps.resolve.outputs.version }}'
         body: Update the machine-owned version and checksum after resolving the upstream release, downloading
-          and hashing the asset, and publishing the rolling release. Full CI is dispatched for this exact
-          PR commit, including native Homebrew style/audit and offline updater fixtures. VirusTotal reporting
+          and hashing the asset, and publishing the rolling release. Normal PR CI runs on this commit,
+          including native Homebrew style/audit and offline updater fixtures. VirusTotal reporting
           keeps its existing optional behavior.
-    - name: Validate the exact cask-pr PR commit
-      if: steps.cask-pr.outputs.pull-request-number != ''
-      env:
-        GH_TOKEN: ${{ github.token }}
-        CASK_PR: ${{ steps.cask-pr.outputs.pull-request-number }}
-        CASK_SHA: ${{ steps.cask-pr.outputs.pull-request-head-sha }}
-        CASK_BRANCH: fix/update-cask-${{ inputs.cask }}
-      run: |
-        set -euo pipefail
-        for attempt in 1 2 3; do
-          if gh workflow run ci.yml --ref "$CASK_BRANCH" \
-            -f pr-number="$CASK_PR" -f expected-head-sha="$CASK_SHA"; then
-            exit 0
-          fi
-          sleep "$((attempt * 2))"
-        done
-        echo "::error::CI dispatch failed. Run ci.yml on $CASK_BRANCH with pr-number=$CASK_PR and expected-head-sha=$CASK_SHA."
-        exit 1
     if: github.repository == 'edbfi/homebrew-taps' && github.ref_name == github.event.repository.default_branch
     timeout-minutes: 40
   virustotal-scan:
