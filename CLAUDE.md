@@ -7,16 +7,16 @@ Homebrew tap `edbfi/taps`: macOS casks that re-host upstream DMGs on this repo's
 ## Commands
 
 ```bash
-bash .github/scripts/check.sh                      # bash -n + shellcheck on all pipeline scripts, then tests/ (cask pipeline fixtures)
+shellcheck -S warning -x scripts/*.sh scripts/lib/*.sh pipelines/*/resolve.sh   # pipeline scripts
+python3 -m unittest discover -s tests -v           # cask pipeline fixtures
 python3 -m unittest discover -s scripts/tests -v   # resolver guards, formula writer, bottle verifier, GUI harness
 python3 -m unittest discover -s scripts/tests -k test_qview_rejects_legacy_asset   # one test case
 python3 -m unittest discover -s tests -p test_pipeline.py -v                       # one file
-actionlint                                         # workflows (.github/actionlint.yaml allows the ubuntu-26.04 label)
 bash scripts/discover.sh                           # cask matrix JSON; `bash scripts/discover.sh '' formula` for formulae
 GH_TOKEN=$(gh auth token) bash scripts/resolve.sh <token>   # live upstream lookup; prints key=value outputs
 ```
 
-Both test trees are offline (fake `curl`/`gh` on PATH); they need Ruby and jq, and `check.sh` also needs ShellCheck. CI runs both: `tests/` via `check.sh`, `scripts/tests/` directly (`.github/workflows/lint.yml`). Resolver and Linux tests go in `scripts/tests/test_pipeline.py`; `write-cask.sh`/`discover.sh`/`publish-release.sh` fixtures go in `tests/test_pipeline.py`.
+Both test trees are offline (fake `curl`/`gh` on PATH); they need Ruby and jq. Resolver and Linux tests go in `scripts/tests/test_pipeline.py`; `write-cask.sh`/`discover.sh`/`publish-release.sh` fixtures go in `tests/test_pipeline.py`.
 
 Native cask checks (macOS only) need this checkout tapped as `edbfi/taps`, exactly as `lint.yml` does it; don't clobber an existing local `edbfi/homebrew-taps` tap, and remove only your own symlink afterwards:
 
@@ -70,9 +70,8 @@ After merge, the first scheduled or dispatched run creates the rolling release a
 
 - In workflow `run:` blocks, pass step outputs and inputs through `env:`, never inline `${{ }}`. Every existing workflow follows this.
 - Keep `max-parallel: 1` in `update-casks.yml`; casks are updated one at a time by design.
-- `ci / required` gates on `quality` (`lint.yml`) and `linux` (`formulae.yml`). `lint.yml` has no push/PR trigger of its own.
 - `scripts/vendor/gh-workflow-immortality.sh` is vendored MIT code (v1.1.1), used unchanged. Re-vendor from upstream instead of patching it. `immortality.yml` needs `WORKFLOW_KEEPALIVE_TOKEN`; if the six-hour cron silently stops, check that secret first.
-- PR titles must be Conventional Commits with author-matching DCO sign-offs (`git commit -s`), enforced by `pr-policy.yml`. Updater commits are `chore(<token>): update to <version>`.
+- PR titles must be Conventional Commits with author-matching DCO sign-offs (`git commit -s`). Updater commits are `chore(<token>): update to <version>`.
 
 ## Reference docs
 
