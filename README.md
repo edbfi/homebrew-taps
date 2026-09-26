@@ -2,16 +2,14 @@
 
 # edbfi/taps
 
-**One Homebrew tap for macOS apps that homebrew-cask does not carry, kept current automatically.**
+**One Homebrew tap for macOS apps that homebrew-cask does not carry.**
 
-[![Update casks](https://img.shields.io/github/actions/workflow/status/edbfi/homebrew-taps/update-casks.yml?branch=main&label=update%20casks&logo=githubactions&logoColor=white)](https://github.com/edbfi/homebrew-taps/actions/workflows/update-casks.yml)
-[![Lint](https://img.shields.io/github/actions/workflow/status/edbfi/homebrew-taps/lint.yml?branch=main&label=lint&logo=githubactions&logoColor=white)](https://github.com/edbfi/homebrew-taps/actions/workflows/lint.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![Monero: Donate XMR](https://img.shields.io/badge/Monero-Donate%20XMR-F26822?logo=monero&logoColor=white)](#-support-the-developers)
 
 </div>
 
-Every cask here re-hosts an upstream build on this repository's releases, checks it with VirusTotal, and is refreshed every six hours by a shared pipeline. Apps that Gatekeeper would block are de-quarantined on install, so they open like anything else.
+Every cask here re-hosts an upstream build on this repository's releases and is refreshed by a shared, manually run pipeline. Apps that Gatekeeper would block are de-quarantined on install, so they open like anything else.
 
 ## 💛 Support the developers
 
@@ -98,9 +96,7 @@ brew install --formula edbfi/taps/fcast-sender
 
 These build from source; no Linux bottles are published by this rollout. Fred TV
 remains source-only pending the existing upstream licensing clarification.
-Native CI checks both architectures, formula tests/linkage, X11/Wayland rendering,
-and local reinstall of eligible bottle artifacts. CI never publishes Linux releases
-or updates the default branch. Formula source updates require a reviewed PR.
+Formula source updates require a reviewed PR.
 
 Use Homebrew's default Linux prefix on a supported host. Your desktop supplies
 X11 or Wayland, D-Bus and audio; FCast capture additionally needs PipeWire and a
@@ -114,27 +110,26 @@ source versions, desktop requirements and untested hardware features.
 
 ```mermaid
 flowchart LR
-    A[Every 6 hours] --> B[discover<br/>pipelines/*]
+    A[Manual run] --> B[discover<br/>pipelines/*]
     B --> C[resolve.sh<br/>per-app upstream lookup]
     C --> D{new version or<br/>missing asset?}
     D -- no --> Z[done]
     D -- yes --> E[download + SHA256]
     E --> F[re-host on<br/>app-latest release]
     F --> G[rewrite cask<br/>version + sha256]
-    G --> H[open PR for full CI and manual review]
-    H --> I[VirusTotal scan<br/>report in release notes]
+    G --> H[open PR for manual review]
 ```
 
-- [`update-casks.yml`](.github/workflows/update-casks.yml) runs on a six-hour schedule, lists every `pipelines/<app>/` directory, and runs the shared [`_update-cask.yml`](.github/workflows/_update-cask.yml) once per app, one at a time.
+- `scripts/discover.sh` lists every `pipelines/<app>/` directory; the shared pipeline scripts run once per app, one at a time.
 - `pipelines/<app>/resolve.sh` is the only app-specific code: it finds the newest upstream build and validates the tag and asset name strictly before anything else runs.
-- The DMG is downloaded, hashed, and attached to this repository's rolling `<app>-latest` release, and the cask's `version` and `sha256` lines are rewritten in a PR for full CI and manual review. Every release page carries the upstream reference, the checksum source, and a VirusTotal report.
-- [`lint.yml`](.github/workflows/lint.yml) runs `brew style`, `brew audit`, and shellcheck on every change.
+- The DMG is downloaded, hashed, and attached to this repository's rolling `<app>-latest` release, and the cask's `version` and `sha256` lines are rewritten in a PR for manual review. Every release page carries the upstream reference and the checksum source.
+- `brew style`, `brew audit`, and shellcheck run locally; the commands are in [AGENTS.md](AGENTS.md).
 
 Releases: <https://github.com/edbfi/homebrew-taps/releases>
 
 ## Adding a cask
 
-Three files, no workflow changes:
+Three files:
 
 1. `Casks/<category>/<app>.rb` with `url` pointing at `releases/download/<app>-latest/<Prefix>-#{version}.dmg` and a donation `caveats` block.
 2. `pipelines/<app>/config.env` with the display name, upstream repo, asset prefix and donation links.
