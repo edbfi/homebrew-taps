@@ -115,7 +115,6 @@ Run the repeatable checks with:
 
 ```bash
 python3 -m unittest discover -s scripts/tests -v
-actionlint
 # On Linux with the formulae installed and host xvfb/xauth/weston/dbus tools:
 bash scripts/test-linux-gui.sh
 # On macOS, inspect a downloaded artifact without installing or launching it:
