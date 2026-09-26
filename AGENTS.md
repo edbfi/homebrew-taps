@@ -34,9 +34,6 @@ automation and packaging regression/GUI tests. Components:
 - Those two lines must keep exactly two leading spaces with the quoted value on the
   same line. `scripts/write-cask.sh` rewrites them with an anchored `sed` and, unlike
   the old per-repo workflows, **fails loudly** if the rewrite did not take effect.
-- The updater commits as `github-actions[bot]` with `chore(<token>): update to <version>`
-  and pushes to `main`. Pull before editing a cask. `renovate.json`
-  `gitIgnoredAuthors` hardcodes that committer email; change both together.
 
 ## Adding a cask
 
@@ -116,9 +113,6 @@ validates the workflows. `lint.yml` runs the same checks in CI.
   (Daniel Rudolf, v1.1.1) in an AGPL-3.0 repo. Re-vendor from upstream rather than
   patching in place; its header points at a "LICENSE file" that here holds the AGPL
   text.
-- Renovate automerges all GitHub Actions updates including majors with
-  `ignoreTests: true`; a major bump lands on `main` unreviewed, so check the next
-  scheduled run after one merges.
 
 ## Conventions
 
