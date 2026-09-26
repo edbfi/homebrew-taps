@@ -109,9 +109,6 @@ validates the workflows. `lint.yml` runs the same native checks behind the unfil
   (Daniel Rudolf, v1.1.1) in an AGPL-3.0 repo. Re-vendor from upstream rather than
   patching in place; its header points at a "LICENSE file" that here holds the AGPL
   text.
-- Renovate uses the shared preset and required CI gate; `ignoreTests` is never
-  enabled. Cask version/hash updates remain owned by the download/re-hosting
-  publisher. See `CI.md` for the activation state and limitations.
 
 ## Conventions
 
