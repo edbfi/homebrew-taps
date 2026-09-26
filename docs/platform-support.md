@@ -1,8 +1,8 @@
 > This document records the original Linux feature validation from 6 September
-> 2026. The edbfi integration uses read-only CI and source installation; no Linux
+> 2026. The edbfi integration uses local validation and source installation; no Linux
 > publication workflow is enabled. Historical bottle publication/automatic-update
 > descriptions below are design context, not active behavior. Current operational
-> policy is in CI.md and README.md. New validation receipts are recorded privately.
+> policy is in README.md. New validation receipts are recorded privately.
 
 # Platform support and validation
 
