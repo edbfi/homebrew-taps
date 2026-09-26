@@ -30,9 +30,7 @@ Three moving parts:
 - Those two lines must keep exactly two leading spaces with the quoted value on the
   same line. `scripts/write-cask.sh` rewrites them with an anchored `sed` and, unlike
   the old per-repo workflows, **fails loudly** if the rewrite did not take effect.
-- The updater commits as `github-actions[bot]` with `chore(<token>): update to <version>`
-  through a checked cask PR with an explicit full-CI dispatch. See `CI.md` for
-  required settings, local checks and generated update behavior.
+- Update workflows are disabled. Run `bash .github/scripts/check.sh` locally and review cask updates manually.
 
 ## Adding a cask
 
