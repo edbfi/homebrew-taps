@@ -71,11 +71,9 @@ After merge, the first scheduled or dispatched run creates the rolling release a
 - In workflow `run:` blocks, pass step outputs and inputs through `env:`, never inline `${{ }}`. Every existing workflow follows this.
 - Keep `max-parallel: 1` in `update-casks.yml`; casks are updated one at a time by design.
 - `ci / required` gates on `quality` (`lint.yml`) and `linux` (`formulae.yml`). `lint.yml` has no push/PR trigger of its own.
-- Renovate's `homebrew` manager is disabled on purpose, because the updater owns cask versions. The `Homebrew/actions/setup-homebrew` pins in `formulae.yml` must keep the exact `@<40-hex sha> # YYYY.MM.DD.N` form, or the custom regex manager in `renovate.json` stops matching.
 - `scripts/vendor/gh-workflow-immortality.sh` is vendored MIT code (v1.1.1), used unchanged. Re-vendor from upstream instead of patching it. `immortality.yml` needs `WORKFLOW_KEEPALIVE_TOKEN`; if the six-hour cron silently stops, check that secret first.
 - PR titles must be Conventional Commits with author-matching DCO sign-offs (`git commit -s`), enforced by `pr-policy.yml`. Updater commits are `chore(<token>): update to <version>`.
 
 ## Reference docs
 
-- `CI.md`: required CI gate, Renovate merge ownership, publisher token (`CASK_PUBLISHER_TOKEN`), keepalive. Read before changing `ci.yml`, `_update-cask.yml`, `update-casks.yml`, `pr-policy.yml`, `renovate.json`, secrets or branch protection.
 - `docs/platform-support.md`: per-app platform/architecture decisions, licensing constraints, manual acceptance matrix. Read before changing supported architectures, bottle eligibility or Linux formula dependencies. Its "Evidence collected" section is a historical record, not current behavior.
