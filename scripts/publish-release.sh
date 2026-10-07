@@ -4,7 +4,7 @@
 #
 # Existing assets with the same name are left in place (the checksum in the cask
 # was computed from the freshly downloaded upstream file, so a stale re-hosted
-# copy must be deleted by hand before re-running; see AGENTS.md).
+# copy must be deleted by hand before re-running).
 #
 # Usage: scripts/publish-release.sh TOKEN ASSET_PATH NOTES_FILE
 # shellcheck source=SCRIPTDIR/lib/common.sh

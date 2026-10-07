@@ -123,7 +123,7 @@ flowchart LR
 - `scripts/discover.sh` lists every `pipelines/<app>/` directory; the shared pipeline scripts run once per app, one at a time.
 - `pipelines/<app>/resolve.sh` is the only app-specific code: it finds the newest upstream build and validates the tag and asset name strictly before anything else runs.
 - The DMG is downloaded, hashed, and attached to this repository's rolling `<app>-latest` release, and the cask's `version` and `sha256` lines are rewritten in a PR for manual review. Every release page carries the upstream reference and the checksum source.
-- `brew style`, `brew audit`, and shellcheck run locally; the commands are in [AGENTS.md](AGENTS.md).
+- `brew style`, `brew audit`, and shellcheck run locally.
 
 Releases: <https://github.com/edbfi/homebrew-taps/releases>
 
@@ -135,7 +135,7 @@ Three files:
 2. `pipelines/<app>/config.env` with the display name, upstream repo, asset prefix and donation links.
 3. `pipelines/<app>/resolve.sh` that writes `version` and `download_url` (see the existing resolvers and the contract at the top of `scripts/resolve.sh`).
 
-`bash scripts/discover.sh` should then list the new app, and `GH_TOKEN=$(gh auth token) bash scripts/resolve.sh <app>` should print its current version. Details in [AGENTS.md](AGENTS.md).
+`bash scripts/discover.sh` should then list the new app, and `GH_TOKEN=$(gh auth token) bash scripts/resolve.sh <app>` should print its current version.
 
 ## License and attribution
 
