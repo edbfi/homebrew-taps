@@ -148,5 +148,3 @@ This is an unofficial, community-maintained tap, not affiliated with any of the 
 | Fred TV | [GPL-2.0](https://github.com/Fredolx/open-tv/blob/main/LICENSE) |
 | Paicord | [GPL-3.0](https://github.com/llsc12/Paicord/blob/main/LICENSE) |
 | qView | [GPL-3.0](https://github.com/jurplel/qView/blob/main/LICENSE) |
-
-`scripts/vendor/gh-workflow-immortality.sh` is [gh-workflow-immortality](https://github.com/PhrozenByte/gh-workflow-immortality) by Daniel Rudolf, vendored unchanged under the MIT license.

@@ -63,8 +63,6 @@ repos:
         entry: shellcheck -S error
         language: system
         types: [shell]
-        # Vendored upstream code, kept unchanged (see README).
-        exclude: ^scripts/vendor/
       # Both offline unittest trees; they need python3, jq and Ruby.
       - id: tooling-tests
         name: Homebrew tooling tests
