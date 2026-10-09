@@ -115,14 +115,14 @@ Run the repeatable checks with:
 
 ```bash
 python3 -m unittest discover -s scripts/tests -v
-# On Linux with the formulae installed and host xvfb/xauth/weston/dbus tools:
+# On Linux with the formulae installed and host xvfb/xauth/weston/Mesa EGL/dbus tools:
 bash scripts/test-linux-gui.sh
 # On macOS, inspect a downloaded artifact without installing or launching it:
 python3 scripts/inspect-macos.py qview /path/to/qView.dmg
 ```
 
-The Wayland harness starts a fresh headless Weston compositor and D-Bus session
-for each application, retaining its compositor log alongside the client logs.
+The Wayland harness starts a fresh headless Weston compositor (GL renderer on
+llvmpipe) and D-Bus session for each application, retaining its compositor log alongside the client logs.
 Early client exits remain failures and retain their complete output.
 
 The GUI harness uses private HOME/XDG directories and isolated D-Bus/display

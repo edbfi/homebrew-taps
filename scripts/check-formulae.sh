@@ -11,7 +11,7 @@
 # Each selected formula, dependencies first: build from source, brew test,
 # brew linkage --test and brew audit --strict. Formulae installing a desktop
 # entry then run the X11 and Wayland checks of scripts/test-linux-gui.sh, which
-# need xvfb, xauth, weston and dbus-x11 from the host.
+# need xvfb, xauth, weston, Mesa EGL (weston's GL renderer) and dbus-x11 from the host.
 #
 # Usage: scripts/check-formulae.sh [--list]
 #   --list  print the selection, one token per line, and build nothing.
