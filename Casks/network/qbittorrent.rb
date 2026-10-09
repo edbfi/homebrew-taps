@@ -15,7 +15,7 @@ cask "qbittorrent" do
   ]
   depends_on macos: :ventura
 
-  # Renamed for consistency: the app name differs between the Finder and a shell.
+  # Upstream's bundle name is lowercase; install it under the product's name.
   app "qbittorrent.app", target: "qBittorrent.app"
 
   postflight_steps do
