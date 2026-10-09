@@ -25,6 +25,10 @@
 source "$(dirname "$0")/lib/common.sh"
 
 self="${REPO_ROOT}/scripts/update.sh"
+# Per-cask deadlines (seconds) for the Linux stages, so one stalled download can't
+# use up the job: six casks stay within publish's 60 and push's 20 minutes.
+PUBLISH_DEADLINE="${PUBLISH_DEADLINE:-540}"
+PUSH_DEADLINE="${PUSH_DEADLINE:-150}"
 
 # field KEY FILE — the value of the KEY=… line of a key=value FILE.
 field() { sed -n "s/^$1=//p" "$2" | head -n 1; }
@@ -141,18 +145,20 @@ stage_publish() {
   local tokens token failed=0 published=()
   first_attempt
   tokens="$(tokens_from "$1")"
+  echo "published=[]"
   while IFS= read -r token
   do
     [[ -n "${token}" ]] || continue
-    if bash "${self}" _publish "${token}"
+    if timeout "${PUBLISH_DEADLINE}" bash "${self}" _publish "${token}"
     then
       published+=("${token}")
+      # Output as we go: the last line wins, even if a later cask fails.
+      echo "published=$(json_array "${published[@]}")"
     else
       failed=$((failed + 1))
       log "${token}: not published."
     fi
   done <<<"${tokens}"
-  echo "published=$(json_array ${published[@]+"${published[@]}"})"
   [[ "${failed}" -eq 0 ]] || die "${failed} cask(s) failed to publish"
 }
 
@@ -185,8 +191,11 @@ stage_verify() {
   log "${token}: ${url} serves the claimed bytes."
 }
 
+# recipe_body FILE — a cask without its machine-owned version and sha256 lines.
+recipe_body() { grep -Ev '^  (version|sha256) "' "$1"; }
+
 push_one() {
-  local token="$1" claim asset release clone tries current current_sha changed err
+  local token="$1" claim asset release verified clone tries current current_sha changed err
   load_pipeline "${token}"
   claim="$(intake_claim "checked-${token}-${GITHUB_RUN_ATTEMPT:?}")"
   read_claim "${claim}"
@@ -196,10 +205,17 @@ push_one() {
   jq -e --arg name "${asset}" --arg digest "sha256:${CLAIM_SHA256}" \
     '[.assets[] | select(.name == $name)] | length == 1 and .[0].state == "uploaded" and .[0].digest == $digest' \
     "${release}" >/dev/null || die "${token}: ${RELEASE_TAG} doesn't serve ${asset} with the claimed sha256"
+  # Job 3 verified the cask of VERIFIED_SHA; main's must still be that recipe.
+  verified="$(mktemp)"
+  gh api "repos/${GH_REPO:?}/contents/${CASK_FILE}?ref=${VERIFIED_SHA:?VERIFIED_SHA is required}" --jq .content |
+    base64 -d >"${verified}"
+  [[ -s "${verified}" ]] || die "${token}: can't read the verified ${CASK_FILE}"
   for tries in 1 2 3
   do
     clone="$(mktemp -d)"
     git -c core.hooksPath=/dev/null clone --quiet --depth 1 --branch main "${UPDATER_REMOTE:?}" "${clone}"
+    [[ "$(recipe_body "${clone}/${CASK_FILE}")" == "$(recipe_body "${verified}")" ]] ||
+      die "${token}: ${CASK_FILE} changed on main since it was verified; the next run redoes it"
     current="$(cask_version "${clone}/${CASK_FILE}")"
     current_sha="$(sed -n 's/^  sha256 "\(.*\)"$/\1/p' "${clone}/${CASK_FILE}")"
     if [[ "${current}" == "${CLAIM_VERSION}" ]]
@@ -238,7 +254,7 @@ stage_push() {
   while IFS= read -r token
   do
     [[ -n "${token}" ]] || continue
-    bash "${self}" _push "${token}" || {
+    timeout "${PUSH_DEADLINE}" bash "${self}" _push "${token}" || {
       failed=$((failed + 1))
       log "${token}: not pushed."
     }

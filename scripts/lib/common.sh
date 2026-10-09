@@ -61,10 +61,18 @@ require_safe_version() {
 }
 
 # version_newer NEW OLD — true when NEW sorts strictly after OLD (LC_ALL=C sort -V).
-# sort -V is not upstream chronology: two Paicord builds of one day order by commit
-# hash, and Flixor's beta2.4.0 sorts after 1.0.0. Such updates need a human.
+# sort -V is not upstream chronology, so these need a human: two date-hash builds of
+# one day (Paicord's YYYY-MM-DD-<sha>, which would order by hash), and Flixor's
+# beta2.4.0, which sorts after 1.0.0.
 version_newer() {
-  [[ "$1" != "$2" ]] && [[ "$(printf '%s\n%s\n' "$2" "$1" | LC_ALL=C sort -V | tail -n 1)" == "$1" ]]
+  local day='^([0-9]{4}-[0-9]{2}-[0-9]{2})-[0-9a-f]+$' new_day
+  [[ "$1" != "$2" ]] || return 1
+  if [[ "$1" =~ ${day} ]]
+  then
+    new_day="${BASH_REMATCH[1]}"
+    [[ "$2" =~ ${day} && "${BASH_REMATCH[1]}" == "${new_day}" ]] && return 1
+  fi
+  [[ "$(printf '%s\n%s\n' "$2" "$1" | LC_ALL=C sort -V | tail -n 1)" == "$1" ]]
 }
 
 # release_json TAG OUTFILE — this repository's release TAG as JSON. Returns 1 only

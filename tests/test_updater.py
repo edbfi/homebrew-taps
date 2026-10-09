@@ -15,6 +15,9 @@ import json, os, pathlib, sys
 args = sys.argv[1:]
 routes = json.loads(pathlib.Path(os.environ["ROUTES"]).read_text())
 status, body = routes.get(args[-1], [404, {}])
+if body == "stall":
+    import time
+    time.sleep(60)
 data = body if isinstance(body, str) else json.dumps(body)
 pathlib.Path(args[args.index("-o") + 1]).write_text(data)
 if "-w" in args:
@@ -90,7 +93,8 @@ class HelperTests(UpdaterTestCase):
         cases = [("7.2", "7.1", True), ("7.1", "7.1", False), ("7.0", "7.1", False), ("0.0.10", "0.0.9", True),
                  ("2026-09-27-5c76f36", "2026-09-16-e1f9503", True), ("beta2.5.0", "beta2.4.0", True),
                  # Not chronology: these need a human (check-update.sh).
-                 ("1.0.0", "beta2.4.0", False), ("2026-09-27-0aaaaaa", "2026-09-27-fffffff", False)]
+                 ("1.0.0", "beta2.4.0", False), ("2026-09-27-0aaaaaa", "2026-09-27-fffffff", False),
+                 ("2026-09-27-fffffff", "2026-09-27-0aaaaaa", False)]
         for new, old, expected in cases:
             with self.subTest(new=new, old=old):
                 result = self.bash(f'version_newer "{new}" "{old}"')
@@ -271,7 +275,7 @@ class StageTests(UpdaterTestCase):
         self.artifact("claim-qview-1", {"claim.env": claim("7.2", sha("qview 7.2"))})
         result = self.update("publish", '["qview"]')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), 'published=["qview"]')
+        self.assertEqual(result.stdout.strip().splitlines()[-1], 'published=["qview"]')
         self.assertEqual((self.state / "releases/qview-latest/qView-7.2.dmg").read_text(), "qview 7.2")
 
     def test_publish_rejects_a_claim_upstream_doesnt_back(self):
@@ -289,6 +293,17 @@ class StageTests(UpdaterTestCase):
         self.assertIn("start a new run", rerun.stderr)
 
 
+    def test_a_stalled_cask_times_out_and_the_rest_publish(self):
+        self.routes["https://api.github.com/repos/Flixorui/flixor/releases/latest"] = [200, "stall"]
+        self.artifact("claim-flixor-1", {"claim.env": claim("beta2.5.0", "c" * 64)})
+        self.qview_upstream("7.2", "qview 7.2")
+        self.artifact("claim-qview-1", {"claim.env": claim("7.2", sha("qview 7.2"))})
+        result = self.update("publish", '["flixor", "qview"]', PUBLISH_DEADLINE="3")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("flixor: not published", result.stderr)
+        self.assertEqual(result.stdout.strip().splitlines()[-1], 'published=["qview"]')
+
+
 class PushStageTests(UpdaterTestCase):
     def setUp(self):
         super().setUp()
@@ -303,7 +318,8 @@ class PushStageTests(UpdaterTestCase):
         subprocess.run([*git, "-C", str(seed), "add", "."], check=True)
         subprocess.run([*git, "-C", str(seed), "commit", "-q", "-m", "seed"], check=True)
         subprocess.run(["git", "-C", str(seed), "push", "-q", str(self.origin), "main"], check=True)
-        self.env["UPDATER_REMOTE"] = str(self.origin)
+        shutil.copytree(seed / "Casks", self.state / "contents/Casks")
+        self.env.update(UPDATER_REMOTE=str(self.origin), VERIFIED_SHA="seed")
 
     def origin_file(self, path):
         return subprocess.run(["git", "--git-dir", str(self.origin), "show", f"main:{path}"],
@@ -354,6 +370,15 @@ class PushStageTests(UpdaterTestCase):
         self.assertNotIn("chore(", self.commits())
         rerun = self.run_script(ROOT / "scripts/update.sh", "push", '["qview"]', env={"GITHUB_RUN_ATTEMPT": "3"})
         self.assertIn("start a new run", rerun.stderr)
+
+    def test_refuses_a_recipe_changed_since_verification(self):
+        verified = self.state / "contents/Casks/media/qview.rb"
+        verified.write_text(verified.read_text().replace("qview-latest", "qview-old"))
+        self.checked("qview", "qView", "7.2", "qview 7.2")
+        result = self.run_script(ROOT / "scripts/update.sh", "push", '["qview"]')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("changed on main since it was verified", result.stderr)
+        self.assertNotIn("chore(", self.commits())
 
     def test_a_rejected_push_fails_without_retrying(self):
         hook = self.origin / "hooks/pre-receive"

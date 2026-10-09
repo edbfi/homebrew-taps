@@ -30,7 +30,10 @@ jobs:
       - id: discover
         env:
           CASK_FILTER: ${{ inputs.cask }}
-        run: echo "casks=$(bash scripts/discover.sh "$CASK_FILTER" | jq -c .cask)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          casks="$(bash scripts/discover.sh "$CASK_FILTER" | jq -ce '.cask | select(length > 0)')"
+          echo "casks=$casks" >> "$GITHUB_OUTPUT"
 
   # Job 1: unprivileged. Its claim (version and sha256) is only a claim.
   check:
@@ -148,6 +151,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           UPDATER_REMOTE: git@github.com:${{ github.repository }}.git
+          VERIFIED_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           umask 077
