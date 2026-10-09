@@ -12,41 +12,6 @@ CASK = 'cask "fixture" do\n  version "1.0.0"\n  sha256 "' + "a" * 64 + '"\n  url
 
 
 class PipelineTests(unittest.TestCase):
-    def test_publisher_preserves_existing_downloads(self):
-        with tempfile.TemporaryDirectory() as directory:
-            work = Path(directory)
-            fake = work / "gh"
-            fake.write_text("#!/usr/bin/env python3\nimport json, os, sys\nfrom pathlib import Path\np=Path(os.environ['CALLS'])\nwith p.open('a') as f: f.write(json.dumps(sys.argv[1:])+'\\n')\nup=p.with_suffix('.uploaded')\nif sys.argv[1:3]==['release','upload']: up.write_text(Path(sys.argv[4]).name)\nif sys.argv[1:3]==['release','view']: print(os.environ.get('EXISTING','qView-7.1.dmg')); up.exists() and print(up.read_text())\nif sys.argv[1:3]==['release','download']: (Path(sys.argv[sys.argv.index('--dir')+1])/'qView-7.1.dmg').write_bytes(os.environ.get('HOSTED_BYTES','fixture').encode())\n")
-            fake.chmod(0o755)
-            asset = work / "qView-7.1.dmg"
-            asset.write_bytes(b"fixture")
-            notes = work / "notes.md"
-            notes.write_text("fixture")
-            calls = work / "calls.jsonl"
-            env = {**os.environ, "PATH": str(work) + os.pathsep + os.environ["PATH"], "CALLS": str(calls)}
-            result = subprocess.run(["bash", str(ROOT / "scripts/publish-release.sh"), "qview", str(asset), str(notes)],
-                                    cwd=work, env=env, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            commands = [json.loads(line) for line in calls.read_text().splitlines()]
-            self.assertTrue(any(c[:2] == ["release", "edit"] for c in commands))
-            self.assertFalse(any(c[:2] in (["release", "delete-asset"], ["release", "upload"]) for c in commands))
-            self.assertTrue(any(c[:2] == ["release", "download"] for c in commands))
-            env["HOSTED_BYTES"] = "different"
-            mismatch = subprocess.run(["bash", str(ROOT / "scripts/publish-release.sh"), "qview", str(asset), str(notes)],
-                                      cwd=work, env=env, capture_output=True, text=True)
-            self.assertNotEqual(mismatch.returncode, 0)
-            self.assertIn("differs from upstream", mismatch.stderr)
-            self.assertEqual(asset.read_bytes(), b"fixture")
-            env.pop("HOSTED_BYTES")
-            calls.unlink()
-            env["EXISTING"] = "qView-7.0.dmg"
-            upload = subprocess.run(["bash", str(ROOT / "scripts/publish-release.sh"), "qview", str(asset), str(notes)],
-                                    cwd=work, env=env, capture_output=True, text=True)
-            self.assertEqual(upload.returncode, 0, upload.stderr)
-            uploads = [c for c in map(json.loads, calls.read_text().splitlines()) if c[:2] == ["release", "upload"]]
-            self.assertEqual(len(uploads), 1)
-            self.assertNotIn("--clobber", uploads[0])
-
     def rewrite(self, version="1.2.3", digest="b" * 64, content=CASK):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "fixture.rb"
@@ -69,9 +34,13 @@ class PipelineTests(unittest.TestCase):
                 self.assertEqual(output, CASK)
 
     def test_missing_machine_owned_anchor_fails(self):
-        result, _output = self.rewrite(content=CASK.replace('  version "1.0.0"', '  version :latest'))
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("version line was not rewritten", result.stderr)
+        for content in (CASK.replace('  version "1.0.0"', '  version :latest'),
+                        CASK.replace('  version "1.0.0"\n', '  version "1.0.0"\n  version "1.0.0"\n')):
+            with self.subTest(content=content):
+                result, output = self.rewrite(content=content)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("exactly one version and one sha256 line", result.stderr)
+                self.assertEqual(output, content)
 
     def test_discovery_matches_all_casks_and_rejects_unknown_filter(self):
         result = subprocess.run(["bash", "scripts/discover.sh"], cwd=ROOT, capture_output=True, text=True, check=True)

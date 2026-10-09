@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Decide whether TOKEN needs an update. Prints key=value lines for GITHUB_OUTPUT:
-#   previous_version, rolling_release_exists, rolling_asset_exists, needed, reason
+#   previous_version, needed, reason
 #
-# An update is needed when the cask version differs from upstream, when the
-# rolling release is missing, or when it exists but lacks the versioned asset.
-# The last two conditions make a deleted release or asset self-heal.
+# An update is needed only when upstream is newer than the cask (sort -V; edbfi-ci
+# design/d8.md rule 10). Failures, for a human to look at:
+#   - upstream differs from the cask but isn't newer (a downgrade, or an
+#     unorderable version such as a same-day Paicord build);
+#   - the cask is current but its rolling release or asset is missing: restore the
+#     hosted file by hand, since the updater never republishes an old version;
+#   - GitHub can't be asked (anything but a 404 for a missing release).
 #
 # Usage: scripts/check-update.sh TOKEN NEW_VERSION ASSET
 # shellcheck source=SCRIPTDIR/lib/common.sh
@@ -18,33 +22,19 @@ current_version="$(cask_version "${REPO_ROOT}/${CASK_FILE}")"
 log "Cask ${CASK_TOKEN}: current=${current_version} upstream=${new_version} asset=${asset}"
 echo "previous_version=${current_version}"
 
-release_exists=false
-asset_exists=false
-tmp="$(mktemp)"
-if gh release view "${RELEASE_TAG}" --json assets >"${tmp}" 2>/dev/null
-then
-  release_exists=true
-  if jq -e --arg name "${asset}" '.assets[]? | select(.name == $name)' "${tmp}" >/dev/null
-  then
-    asset_exists=true
-  fi
-fi
-echo "rolling_release_exists=${release_exists}"
-echo "rolling_asset_exists=${asset_exists}"
-
 if [[ "${current_version}" != "${new_version}" ]]
 then
+  version_newer "${new_version}" "${current_version}" ||
+    die "Upstream ${new_version} is not newer than ${current_version} (sort -V); update ${CASK_TOKEN} by hand"
   echo "needed=true"
   echo "reason=version changed"
-elif [[ "${release_exists}" != "true" ]]
-then
-  echo "needed=true"
-  echo "reason=rolling release ${RELEASE_TAG} is missing"
-elif [[ "${asset_exists}" != "true" ]]
-then
-  echo "needed=true"
-  echo "reason=rolling release is missing ${asset}"
-else
-  echo "needed=false"
-  echo "reason=up to date"
+  exit 0
 fi
+
+tmp="$(mktemp)"
+release_json "${RELEASE_TAG}" "${tmp}" || die "Rolling release ${RELEASE_TAG} is missing; restore it by hand"
+jq -e --arg name "${asset}" '[.assets[] | select(.name == $name)] | length == 1' "${tmp}" >/dev/null ||
+  die "Rolling release ${RELEASE_TAG} lacks ${asset}; restore it by hand"
+rm -f "${tmp}"
+echo "needed=false"
+echo "reason=up to date"

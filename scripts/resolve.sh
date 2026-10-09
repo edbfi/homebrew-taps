@@ -28,7 +28,17 @@ export RESOLVE_OUT
 # shellcheck disable=SC1090,SC1091
 bash "${PIPELINE_DIR}/resolve.sh"
 
-get() { grep -E "^$1=" "${RESOLVE_OUT}" | tail -n 1 | cut -d= -f2- || true; }
+# One record per known key, so a resolver can't override or smuggle a field.
+keys="$(cut -d= -f1 "${RESOLVE_OUT}")"
+dupes="$(printf '%s\n' "${keys}" | sort | uniq -d)"
+[[ -z "${dupes}" ]] || die "Resolver set ${dupes//$'\n'/, } more than once"
+while IFS= read -r line
+do
+  [[ "${line}" =~ ^(skip|version|download_url|ref|changes_url|archive_member)= ]] ||
+    die "Unexpected resolver record: ${line}"
+done <"${RESOLVE_OUT}"
+
+get() { grep -E "^$1=" "${RESOLVE_OUT}" | cut -d= -f2- || true; }
 
 skip="$(get skip)"
 if [[ "${skip}" = "true" ]]

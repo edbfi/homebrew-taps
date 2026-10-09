@@ -15,8 +15,14 @@ die() {
   exit 1
 }
 
-# kv FILE KEY VALUE — append "KEY=VALUE" to FILE (GITHUB_OUTPUT compatible).
-kv() { printf '%s=%s\n' "$2" "$3" >>"$1"; }
+# kv FILE KEY VALUE — append "KEY=VALUE" to FILE (GITHUB_OUTPUT compatible). A
+# value with a line break could forge another record, so it fails.
+kv() {
+  case "$3" in
+    *$'\n'* | *$'\r'*) die "Refusing a multi-line value for $2" ;;
+  esac
+  printf '%s=%s\n' "$2" "$3" >>"$1"
+}
 
 # http_get URL OUTFILE [curl args...] — GET with retries. Prints the HTTP status
 # code and never fails on a non-2xx response; callers decide what a status means.
@@ -52,6 +58,63 @@ require_2xx() {
 # own stricter regex; this is the last line of defence.
 require_safe_version() {
   [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || die "Unsafe version string: '$1'"
+}
+
+# version_newer NEW OLD — true when NEW sorts strictly after OLD (LC_ALL=C sort -V).
+# sort -V is not upstream chronology: two Paicord builds of one day order by commit
+# hash, and Flixor's beta2.4.0 sorts after 1.0.0. Such updates need a human.
+version_newer() {
+  [[ "$1" != "$2" ]] && [[ "$(printf '%s\n%s\n' "$2" "$1" | LC_ALL=C sort -V | tail -n 1)" == "$1" ]]
+}
+
+# release_json TAG OUTFILE — this repository's release TAG as JSON. Returns 1 only
+# when the release doesn't exist (HTTP 404); any other failure is fatal.
+release_json() {
+  local tag="$1" out="$2" err
+  err="$(mktemp)"
+  if gh api "repos/${GH_REPO:?GH_REPO is required}/releases/tags/${tag}" >"${out}" 2>"${err}"
+  then
+    rm -f "${err}"
+    jq -e --arg tag "${tag}" '.tag_name == $tag and (.assets | type) == "array"' "${out}" >/dev/null ||
+      die "Malformed release ${tag}"
+    return 0
+  fi
+  if grep -q 'HTTP 404' "${err}"
+  then
+    rm -f "${err}"
+    return 1
+  fi
+  cat "${err}" >&2
+  rm -f "${err}"
+  die "Could not read release ${tag}"
+}
+
+# read_claim FILE — validate an updater claim (exactly "version=…" and "sha256=…")
+# and set CLAIM_VERSION and CLAIM_SHA256. Claims cross jobs as artifacts: data only.
+read_claim() {
+  local file="$1"
+  [[ -f "${file}" && ! -L "${file}" ]] || die "Claim ${file} is not a regular file"
+  [[ "$(wc -c <"${file}")" -le 256 ]] || die "Claim ${file} is too large"
+  [[ "$(wc -l <"${file}")" -eq 2 ]] &&
+    [[ "$(grep -c '^version=' "${file}")" -eq 1 ]] &&
+    [[ "$(grep -c '^sha256=' "${file}")" -eq 1 ]] ||
+    die "Claim ${file} must hold exactly one version= and one sha256= line"
+  CLAIM_VERSION="$(sed -n 's/^version=//p' "${file}")"
+  CLAIM_SHA256="$(sed -n 's/^sha256=//p' "${file}")"
+  require_safe_version "${CLAIM_VERSION}"
+  [[ "${CLAIM_SHA256}" =~ ^[0-9a-f]{64}$ ]] || die "Claim ${file} has no valid sha256"
+}
+
+# intake_claim ARTIFACT — download this run's ARTIFACT into a fresh directory and
+# print the path of its only file, claim.env (edbfi-ci security.md rule 5).
+intake_claim() {
+  local name="$1" dir
+  dir="$(mktemp -d)"
+  gh run download "${GITHUB_RUN_ID:?GITHUB_RUN_ID is required}" -R "${GH_REPO:?GH_REPO is required}" \
+    -n "${name}" -D "${dir}" >&2 || die "Could not download artifact ${name}"
+  [[ "$(find "${dir}" -mindepth 1 | wc -l)" -eq 1 && -f "${dir}/claim.env" && ! -L "${dir}/claim.env" ]] ||
+    die "Artifact ${name} must hold exactly one regular file, claim.env"
+  printf '%s\n' "${dir}/claim.env"
 }
 
 # find_cask_file TOKEN — print the repo-relative path of Casks/**/TOKEN.rb.

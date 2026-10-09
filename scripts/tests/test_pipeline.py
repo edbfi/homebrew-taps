@@ -229,13 +229,13 @@ print(status, end="")
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("Unexpected DMG download URL", result.stderr)
 
-    def test_qbittorrent_missing_release_skips_but_api_failure_does_not(self):
-        result = self.resolve_qbittorrent({}, status=404)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "skip=true")
-        result = self.resolve_qbittorrent({}, status=403)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("HTTP 403", result.stderr)
+    def test_qbittorrent_lookup_errors_fail(self):
+        for status in (404, 403, 500):
+            with self.subTest(status=status):
+                result = self.resolve_qbittorrent({}, status=status)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("skip=true", result.stdout)
+                self.assertIn(f"HTTP {status}", result.stderr)
 
     def test_fredtv_rejects_nonuniversal_asset(self):
         result = self.resolve("fredtv", {"https://api.github.com/repos/Fredolx/open-tv/releases/latest":

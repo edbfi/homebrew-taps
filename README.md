@@ -9,7 +9,7 @@
 
 </div>
 
-Every cask here re-hosts an upstream build on this repository's releases and is refreshed by a shared, manually run pipeline. Apps that Gatekeeper would block are de-quarantined on install, so they open like anything else.
+Every cask here re-hosts an upstream build on this repository's releases and is updated by a shared pipeline every six hours. Apps that Gatekeeper would block are de-quarantined on install, so they open like anything else.
 
 ## 💛 Support the developers
 
@@ -110,19 +110,18 @@ Your desktop supplies X11 or Wayland, a session D-Bus and audio; FCast screen sh
 
 ```mermaid
 flowchart LR
-    A[Manual run] --> B[discover<br/>pipelines/*]
-    B --> C[resolve.sh<br/>per-app upstream lookup]
-    C --> D{new version or<br/>missing asset?}
+    A[Every 6 hours] --> B[check each cask<br/>resolve, download, inspect]
+    B --> D{newer upstream?}
     D -- no --> Z[done]
-    D -- yes --> E[download + SHA256]
-    E --> F[re-host on<br/>app-latest release]
-    F --> G[rewrite cask<br/>version + sha256]
-    G --> H[open PR for manual review]
+    D -- yes --> E[re-derive and re-host on<br/>app-latest release]
+    E --> F[fetch it back through<br/>the rewritten cask]
+    F --> G[push version + sha256<br/>to main]
 ```
 
-- `scripts/discover.sh` lists the cask-enabled `pipelines/<app>/` directories; the shared pipeline scripts run once per app, one at a time.
+- [`update-casks.yml`](.github/workflows/update-casks.yml) runs the stages in `scripts/update.sh` every six hours, or on dispatch for one cask. `scripts/discover.sh` lists the cask-enabled `pipelines/<app>/` directories.
 - `pipelines/<app>/resolve.sh` is the only app-specific code: it finds the newest upstream build and validates the tag and asset name strictly before anything else runs.
-- The DMG is downloaded, hashed, and attached to this repository's rolling `<app>-latest` release, and the cask's `version` and `sha256` lines are rewritten in a PR for manual review. Every release page carries the upstream reference and the checksum source.
+- An update needs an upstream version newer than the cask's (`sort -V`). A macOS job downloads the DMG, hashes it and checks the bundle's identity and architectures. A second job, holding the release write access, repeats the lookup and download itself, requires the same checksum, and attaches the DMG to the rolling `<app>-latest` release. Published downloads are never replaced. A macOS job then fetches the hosted file through the rewritten cask, and only then does a last job push the new `version` and `sha256` lines straight to `main`, with a deploy key that may bypass the required checks.
+- A failing cask turns the run red without stopping the others. Retry with a new run: it redoes whatever is missing, and publishes nothing twice. Versions that `sort -V` can't order (a downgrade, two Paicord builds of one day, Flixor leaving its `beta` prefix) and a current version whose hosted DMG went missing need a human.
 - CI runs on every PR, each push to `main` and weekly. It runs the prek hooks (`bash -n`, shellcheck and both offline test trees), `scripts/check-casks.sh` on macOS (`brew readall`, `brew style`, `brew audit --cask`) and `scripts/check-formulae.sh` on Linux x86_64 and ARM64, which builds and tests the changed formulae (all of them weekly). Run the same commands locally: `prek run --all-files --hook-stage manual`, `bash scripts/check-casks.sh`, `bash scripts/check-formulae.sh`.
 
 Releases: <https://github.com/edbfi/homebrew-taps/releases>

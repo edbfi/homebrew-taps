@@ -1,0 +1,168 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The cask updater (edbfi-ci design/d8.md rules 8-13). Every six hours each cask is
+# checked; an update is published to its rolling release, fetched back through the
+# rewritten cask, then pushed straight to main with the deploy key. Stages live in
+# scripts/update.sh. A failing cask turns the run red without stopping the others;
+# retry with a new run, never a re-run.
+name: Update casks
+on:
+  schedule: [{ cron: "37 */6 * * *" }]
+  workflow_dispatch:
+    inputs:
+      cask:
+        description: Only this cask token (blank for all)
+        type: string
+        default: ""
+permissions: {}
+concurrency:
+  group: update-casks
+  cancel-in-progress: false
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: { contents: read }
+    outputs:
+      casks: ${{ steps.discover.outputs.casks }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - id: discover
+        env:
+          CASK_FILTER: ${{ inputs.cask }}
+        run: echo "casks=$(bash scripts/discover.sh "$CASK_FILTER" | jq -c .cask)" >> "$GITHUB_OUTPUT"
+
+  # Job 1: unprivileged. Its claim (version and sha256) is only a claim.
+  check:
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix:
+        cask: ${{ fromJSON(needs.discover.outputs.casks) }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - id: check
+        env:
+          CASK: ${{ matrix.cask }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/update.sh check "$CASK" "$RUNNER_TEMP/claim" >> "$GITHUB_OUTPUT"
+      - if: steps.check.outputs.claim == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: claim-${{ matrix.cask }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/claim/claim.env
+          retention-days: 1
+          if-no-files-found: error
+
+  # Lists the claims; with none, the jobs below are skipped.
+  plan:
+    needs: [discover, check]
+    if: ${{ !cancelled() && needs.discover.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: { contents: read, actions: read }
+    outputs:
+      casks: ${{ steps.plan.outputs.casks }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - id: plan
+        env:
+          CASKS: ${{ needs.discover.outputs.casks }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/update.sh plan "$CASKS" >> "$GITHUB_OUTPUT"
+
+  # Job 2: privileged (shell only). Re-derives each claim from main's own scripts.
+  publish:
+    needs: plan
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.casks != '[]' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions: { contents: write, actions: read }
+    outputs:
+      published: ${{ steps.publish.outputs.published }}
+    steps:
+      - name: Fetch main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth"
+          git init -q "$RUNNER_TEMP/src"
+          git -C "$RUNNER_TEMP/src" -c core.hooksPath=/dev/null -c http.extraheader="AUTHORIZATION: basic $auth" \
+            fetch -q --depth 1 "https://github.com/$REPO.git" refs/heads/main
+          git -C "$RUNNER_TEMP/src" -c core.hooksPath=/dev/null checkout -q FETCH_HEAD
+      - id: publish
+        env:
+          CASKS: ${{ needs.plan.outputs.casks }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash "$RUNNER_TEMP/src/scripts/update.sh" publish "$CASKS" >> "$GITHUB_OUTPUT"
+
+  # Job 3: unprivileged. Fetches each published download through the rewritten cask.
+  verify:
+    needs: publish
+    if: ${{ !cancelled() && needs.publish.outputs.published != '' && needs.publish.outputs.published != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        cask: ${{ fromJSON(needs.publish.outputs.published) }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions: { contents: read, actions: read }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - env:
+          CASK: ${{ matrix.cask }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/update.sh verify "$CASK" "$RUNNER_TEMP/checked"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: checked-${{ matrix.cask }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/checked/claim.env
+          retention-days: 1
+          if-no-files-found: error
+
+  # Job 4: privileged (shell only). Pushes each verified cask as a plain fast-forward.
+  push:
+    needs: [publish, verify]
+    if: ${{ !cancelled() && needs.publish.outputs.published != '' && needs.publish.outputs.published != '[]' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions: { contents: read, actions: read }
+    steps:
+      - name: Push with the deploy key
+        env:
+          DEPLOY_KEY: ${{ secrets.UPDATER_DEPLOY_KEY }}
+          CASKS: ${{ needs.publish.outputs.published }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          UPDATER_REMOTE: git@github.com:${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+          umask 077
+          ssh_dir="$(mktemp -d)"
+          trap 'rm -rf "$ssh_dir"' EXIT
+          printf '%s\n' "$DEPLOY_KEY" > "$ssh_dir/key"
+          unset DEPLOY_KEY
+          # known_hosts from GitHub's published host keys; never trust on first use.
+          curl -fsS --proto '=https' https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > "$ssh_dir/known_hosts"
+          if [[ ! -s "$ssh_dir/known_hosts" ]] ||
+            grep -Ev '^github\.com (ssh-ed25519|ecdsa-sha2-nistp256|ssh-rsa) [A-Za-z0-9+/=]+$' "$ssh_dir/known_hosts"
+          then
+            echo "::error::Unexpected GitHub SSH host keys"
+            exit 1
+          fi
+          export GIT_SSH_COMMAND="ssh -F /dev/null -i $ssh_dir/key -o IdentitiesOnly=yes -o IdentityAgent=none -o UserKnownHostsFile=$ssh_dir/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes"
+          git -c core.hooksPath=/dev/null clone -q --depth 1 --branch main "$UPDATER_REMOTE" "$RUNNER_TEMP/src"
+          bash "$RUNNER_TEMP/src/scripts/update.sh" push "$CASKS"
