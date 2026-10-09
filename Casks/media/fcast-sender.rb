@@ -1,4 +1,4 @@
-# This cask is auto-updated by the update-casks workflow (pipelines/fcast-sender/).
+# This cask is updated by the tap pipeline (pipelines/fcast-sender/).
 # Do not edit the version or sha256 lines manually.
 cask "fcast-sender" do
   version "0.0.3"

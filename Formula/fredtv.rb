@@ -23,6 +23,8 @@ class Fredtv < Formula
   depends_on "yt-dlp"
 
   def install
+    # openssl-sys must take openssl@3, not the openssl@4 that other dependencies install.
+    ENV["OPENSSL_DIR"] = formula_opt_prefix("openssl@3")
     system "npm", "ci", "--no-audit", "--no-fund"
     system "npm", "run", "tauri", "build", "--", "--no-bundle", "--", "--locked"
     libexec.install "src-tauri/target/release/open_tv"

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Print the GitHub Actions matrix for update-casks.yml as JSON: {"cask":["a","b"]}.
-# Every pipelines/<token>/ directory is one matrix entry. Pass a token to select
-# only that cask (used by workflow_dispatch).
+# List the pipeline packages of one kind as JSON: {"cask":["a","b"]} or
+# {"formula":[...]}. Every pipelines/<token>/ directory whose PACKAGE_KINDS
+# includes the kind (default cask) is one entry. Pass a token to select only it.
 #
-# Usage: scripts/discover.sh [TOKEN]
+# Usage: scripts/discover.sh [TOKEN] [cask|formula]
 # shellcheck source=SCRIPTDIR/lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 

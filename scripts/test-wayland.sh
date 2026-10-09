@@ -6,7 +6,9 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 : "${XDG_RUNTIME_DIR:?Private runtime directory required}"
 : "${1:?Application required}"
 app="$1"
-weston --backend=headless --renderer=pixman --no-config --idle-time=0 \
+# Weston 13's pixman renderer intermittently segfaults while compositing on x86_64
+# (edbfi-ci B9); composite with GL on llvmpipe instead.
+LIBGL_ALWAYS_SOFTWARE=1 weston --backend=headless --renderer=gl --no-config --idle-time=0 \
   --socket=tap-wayland --log="${XDG_RUNTIME_DIR}/weston.log" &
 compositor=$!
 cleanup() {

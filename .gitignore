@@ -1,7 +1,7 @@
 # macOS
 .DS_Store
 
-# Pipeline scratch (only ever written under $RUNNER_TEMP in CI, but keep local runs clean)
+# Pipeline scratch that local runs write to the working directory
 *.dmg
 *.zip
 release.json

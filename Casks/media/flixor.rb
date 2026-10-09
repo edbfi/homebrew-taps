@@ -1,4 +1,4 @@
-# This cask is auto-updated by the update-casks workflow (pipelines/flixor/).
+# This cask is updated by the tap pipeline (pipelines/flixor/).
 # Do not edit the version or sha256 lines manually.
 cask "flixor" do
   version "beta2.4.0"

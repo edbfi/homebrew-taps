@@ -3,7 +3,7 @@
 #
 # Every script in scripts/ and every pipelines/<cask>/resolve.sh runs with these
 # helpers loaded. Keep this file small: anything upstream-specific belongs in a
-# resolver, anything workflow-specific belongs in .github/workflows.
+# resolver, anything specific to one pipeline step belongs in that step's script.
 
 set -euo pipefail
 

@@ -123,7 +123,7 @@ flowchart LR
 - `scripts/discover.sh` lists every `pipelines/<app>/` directory; the shared pipeline scripts run once per app, one at a time.
 - `pipelines/<app>/resolve.sh` is the only app-specific code: it finds the newest upstream build and validates the tag and asset name strictly before anything else runs.
 - The DMG is downloaded, hashed, and attached to this repository's rolling `<app>-latest` release, and the cask's `version` and `sha256` lines are rewritten in a PR for manual review. Every release page carries the upstream reference and the checksum source.
-- `brew style`, `brew audit`, and shellcheck run locally.
+- CI runs on every PR, each push to `main` and weekly. It runs the prek hooks (`bash -n`, shellcheck and both offline test trees), `scripts/check-casks.sh` on macOS (`brew readall`, `brew style`, `brew audit --cask`) and `scripts/check-formulae.sh` on Linux x86_64 and ARM64, which builds and tests the changed formulae (all of them weekly). Run the same commands locally: `prek run --all-files --hook-stage manual`, `bash scripts/check-casks.sh`, `bash scripts/check-formulae.sh`.
 
 Releases: <https://github.com/edbfi/homebrew-taps/releases>
 
@@ -148,5 +148,3 @@ This is an unofficial, community-maintained tap, not affiliated with any of the 
 | Fred TV | [GPL-2.0](https://github.com/Fredolx/open-tv/blob/main/LICENSE) |
 | Paicord | [GPL-3.0](https://github.com/llsc12/Paicord/blob/main/LICENSE) |
 | qView | [GPL-3.0](https://github.com/jurplel/qView/blob/main/LICENSE) |
-
-`scripts/vendor/gh-workflow-immortality.sh` is [gh-workflow-immortality](https://github.com/PhrozenByte/gh-workflow-immortality) by Daniel Rudolf, vendored unchanged under the MIT license.
