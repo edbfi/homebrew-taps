@@ -57,6 +57,8 @@ then
 fi
 
 declare -A selected=()
+# Formulae deleted by the change: never built, but whatever still depends on them is.
+declare -A removed=()
 if [[ -z "${base}" || "${base}" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null
 then
   echo "No usable base commit: selecting every formula." >&2
@@ -73,9 +75,9 @@ else
         for token in "${formulae[@]}"; do selected["${token}"]=1; done
       fi
     done
-    if [[ "${file}" =~ ^Formula/([a-z0-9-]+)\.rb$ && -f "${file}" ]]
+    if [[ "${file}" =~ ^Formula/([a-z0-9-]+)\.rb$ ]]
     then
-      selected["${BASH_REMATCH[1]}"]=1
+      if [[ -f "${file}" ]]; then selected["${BASH_REMATCH[1]}"]=1; else removed["${BASH_REMATCH[1]}"]=1; fi
     fi
   done
 fi
@@ -90,7 +92,7 @@ do
     [[ -z "${selected[${token}]:-}" ]] || continue
     for dep in $(tap_deps "${token}")
     do
-      if [[ -n "${selected[${dep}]:-}" ]]
+      if [[ -n "${selected[${dep}]:-}" || -n "${removed[${dep}]:-}" ]]
       then
         selected["${token}"]=1
         grown=true
@@ -155,7 +157,13 @@ gui=()
 for token in "${order[@]}"
 do
   echo "::group::${token}"
-  brew install --formula --build-from-source "edbfi/taps/${token}"
+  # reinstall when present, so a changed recipe with an unchanged version is really rebuilt.
+  if brew list --formula "edbfi/taps/${token}" >/dev/null 2>&1
+  then
+    brew reinstall --formula --build-from-source "edbfi/taps/${token}"
+  else
+    brew install --formula --build-from-source "edbfi/taps/${token}"
+  fi
   brew test "edbfi/taps/${token}"
   brew linkage --test "edbfi/taps/${token}"
   brew audit --strict --formula "edbfi/taps/${token}"
