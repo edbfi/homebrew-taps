@@ -1,7 +1,7 @@
 """A fake `gh` for the updater tests: releases and run artifacts live under $FAKE_GH.
 
 Layout: releases/<tag>/<asset> (a missing tag directory is HTTP 404),
-artifacts/<name>/<files> and contents/<path> (served for any ref). Every call is
+artifacts/<name>/<files> and contents/<ref>/<path>. Every call is
 appended to calls.jsonl. FAKE_GH_API_STATUS makes the release API fail with that
 HTTP status.
 """
@@ -41,8 +41,11 @@ if args[:1] == ["api"] and "/releases/tags/" in args[1]:
               for f in sorted((releases / tag).iterdir())]
     print(json.dumps({"tag_name": tag, "assets": assets}))
 elif args[:1] == ["api"] and "/contents/" in args[1]:
-    path = args[1].split("/contents/", 1)[1].split("?", 1)[0]
-    print(base64.b64encode((state / "contents" / path).read_bytes()).decode())
+    path, _, query = args[1].split("/contents/", 1)[1].partition("?ref=")
+    source = state / "contents" / query / path
+    if not source.is_file():
+        fail("gh: Not Found (HTTP 404)")
+    print(base64.b64encode(source.read_bytes()).decode())
 elif args[:1] == ["api"] and "/artifacts" in args[-3 if "--jq" in args else -1]:
     for artifact in sorted((state / "artifacts").iterdir()) if (state / "artifacts").is_dir() else []:
         print(artifact.name)

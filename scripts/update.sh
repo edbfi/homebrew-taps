@@ -149,7 +149,7 @@ stage_publish() {
   while IFS= read -r token
   do
     [[ -n "${token}" ]] || continue
-    if timeout "${PUBLISH_DEADLINE}" bash "${self}" _publish "${token}"
+    if timeout --kill-after=10s "${PUBLISH_DEADLINE}" bash "${self}" _publish "${token}"
     then
       published+=("${token}")
       # Output as we go: the last line wins, even if a later cask fails.
@@ -254,7 +254,7 @@ stage_push() {
   while IFS= read -r token
   do
     [[ -n "${token}" ]] || continue
-    timeout "${PUSH_DEADLINE}" bash "${self}" _push "${token}" || {
+    timeout --kill-after=10s "${PUSH_DEADLINE}" bash "${self}" _push "${token}" || {
       failed=$((failed + 1))
       log "${token}: not pushed."
     }

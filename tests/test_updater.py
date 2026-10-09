@@ -318,8 +318,8 @@ class PushStageTests(UpdaterTestCase):
         subprocess.run([*git, "-C", str(seed), "add", "."], check=True)
         subprocess.run([*git, "-C", str(seed), "commit", "-q", "-m", "seed"], check=True)
         subprocess.run(["git", "-C", str(seed), "push", "-q", str(self.origin), "main"], check=True)
-        shutil.copytree(seed / "Casks", self.state / "contents/Casks")
-        self.env.update(UPDATER_REMOTE=str(self.origin), VERIFIED_SHA="seed")
+        shutil.copytree(seed / "Casks", self.state / "contents/verified/Casks")
+        self.env.update(UPDATER_REMOTE=str(self.origin), VERIFIED_SHA="verified")
 
     def origin_file(self, path):
         return subprocess.run(["git", "--git-dir", str(self.origin), "show", f"main:{path}"],
@@ -372,7 +372,7 @@ class PushStageTests(UpdaterTestCase):
         self.assertIn("start a new run", rerun.stderr)
 
     def test_refuses_a_recipe_changed_since_verification(self):
-        verified = self.state / "contents/Casks/media/qview.rb"
+        verified = self.state / "contents/verified/Casks/media/qview.rb"
         verified.write_text(verified.read_text().replace("qview-latest", "qview-old"))
         self.checked("qview", "qView", "7.2", "qview 7.2")
         result = self.run_script(ROOT / "scripts/update.sh", "push", '["qview"]')
