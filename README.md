@@ -43,14 +43,14 @@ This tap only re-packages other people's work. If an app earns a place in your D
 | [qBittorrent](https://www.qbittorrent.org/) | Universal, macOS 13+ | — |
 | [qView](https://github.com/jurplel/qView) | Universal, macOS 12+ | ARM64 / x86_64 |
 
-Install with `brew install --cask edbfi/taps/<app>` on macOS or `brew install --formula edbfi/taps/<app>` on Linux; tokens are `fcast-sender`, `flixor`, `fredtv`, `paicord`, `qbittorrent` and `qview`. Name the package kind where both exist. An app's minimum macOS version is not a promise of Homebrew support on that version; see [platform support](docs/platform-support.md) for tested versions and limits.
+Install with `brew install --cask edbfi/taps/<app>` on macOS or `brew install --formula edbfi/taps/<app>` on Linux; tokens are `fcast-sender`, `flixor`, `fredtv`, `paicord`, `qbittorrent` and `qview`. Name the package kind where both exist. "Universal" means the bundle contains ARM64 and x86_64 code; Intel runtime is largely untested. An app's minimum macOS version is not a promise of Homebrew support on that version; see [platform support](docs/platform-support.md) for tested versions and limits.
 
 Casks live in `Casks/<category>/`: `media/` holds FCast Sender, Flixor, Fred TV and qView; `network/` holds qBittorrent; `social/` holds Paicord. The category is only a folder; the install command never changes.
 
 ### App notes
 
 - **qBittorrent** packages the standard stable desktop DMG (Qt 6/libtorrent 1.2), not the separate `qbittorrent-cli` client or `lt20` variant. Upstream signs the universal `qbittorrent.app` with its own self-issued certificate, not an Apple Developer ID, so the cask installs it as `qBittorrent.app` and removes quarantine after installation. Updates wait until the latest stable release includes the standard DMG. If migrating from Homebrew's disabled macOS cask, run `brew uninstall --cask homebrew/cask/qbittorrent` without `--zap`, then `brew install --cask edbfi/taps/qbittorrent` to preserve settings and torrent state.
-- **FCast Sender** ships only an `aarch64` build, so Intel Macs are not supported. The app is signed and notarized by FUTO, so no quarantine workaround is applied. Versions drop the pre-release suffix the upstream tag carries: `sender-0.0.3-beta` becomes `0.0.3`.
+- **FCast Sender**'s upstream macOS DMG contains only an ARM64 main executable, so the cask doesn't support Intel Macs. The app is signed and notarized by FUTO, so no quarantine workaround is applied. Versions drop the pre-release suffix the upstream tag carries: `sender-0.0.3-beta` becomes `0.0.3`.
 - **Flixor** versions match upstream tags such as `beta2.4.0`. The app bundle is `FlixorMac.app`.
 - **Fred TV** depends on the `mpv`, `ffmpeg` and `yt-dlp` formulae, which Homebrew installs alongside it. Versions strip a leading `v` (`v1.9.1` becomes `1.9.1`).
 - **Paicord** uses the immutable upstream release belonging to the newest successful main build. Each cask version is `YYYY-MM-DD-<short sha>`; the release tag must match that exact build commit.
@@ -98,13 +98,13 @@ brew upgrade --formula edbfi/taps/qview
 brew uninstall --formula edbfi/taps/qview
 ```
 
-The other launch commands are `fredtv` and `fcast-sender`. To show the launchers and icons in your desktop menu, add this to your session's environment and log in again:
+The other launch commands are `fredtv` and `fcast-sender`; desktop entries use absolute Homebrew paths, and Fred TV's wrapper finds its media tools from menu launches too. To show the launchers and icons in your desktop menu, add this to your session's environment and log in again:
 
 ```sh
 export XDG_DATA_DIRS="/home/linuxbrew/.linuxbrew/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 ```
 
-Your desktop supplies X11 or Wayland, a session D-Bus and audio; FCast screen sharing also needs PipeWire and a compatible `xdg-desktop-portal` ScreenCast backend. The tap installs a GStreamer PipeWire plugin but starts no session services. Uninstalling removes the launcher, desktop entry, icons and binaries and keeps settings; formulae have no `--zap`. Review unused dependencies with `brew autoremove --dry-run`. Don't run the GUI apps with `sudo`. See [platform support and historical validation](docs/platform-support.md) for source versions, desktop requirements and untested hardware features.
+Your desktop supplies X11 or Wayland, a session D-Bus and audio; FCast screen sharing also needs PipeWire and a compatible `xdg-desktop-portal` ScreenCast backend. The tap installs a GStreamer PipeWire plugin but starts no session services. Uninstalling removes the launcher, desktop entry, icons and binaries and keeps settings and recordings; formulae have no `--zap`. Review unused dependencies with `brew autoremove --dry-run`. Don't run the GUI apps with `sudo`. See [platform support and historical validation](docs/platform-support.md) for source versions, desktop requirements and untested hardware features.
 
 ## How it works
 
@@ -120,7 +120,7 @@ flowchart LR
     G --> H[open PR for manual review]
 ```
 
-- `scripts/discover.sh` lists every `pipelines/<app>/` directory; the shared pipeline scripts run once per app, one at a time.
+- `scripts/discover.sh` lists the cask-enabled `pipelines/<app>/` directories; the shared pipeline scripts run once per app, one at a time.
 - `pipelines/<app>/resolve.sh` is the only app-specific code: it finds the newest upstream build and validates the tag and asset name strictly before anything else runs.
 - The DMG is downloaded, hashed, and attached to this repository's rolling `<app>-latest` release, and the cask's `version` and `sha256` lines are rewritten in a PR for manual review. Every release page carries the upstream reference and the checksum source.
 - CI runs on every PR, each push to `main` and weekly. It runs the prek hooks (`bash -n`, shellcheck and both offline test trees), `scripts/check-casks.sh` on macOS (`brew readall`, `brew style`, `brew audit --cask`) and `scripts/check-formulae.sh` on Linux x86_64 and ARM64, which builds and tests the changed formulae (all of them weekly). Run the same commands locally: `prek run --all-files --hook-stage manual`, `bash scripts/check-casks.sh`, `bash scripts/check-formulae.sh`.
@@ -145,7 +145,7 @@ This is an unofficial, community-maintained tap, not affiliated with any of the 
 
 | App | Upstream license |
 | --- | --- |
-| FCast Sender | [MIT](https://github.com/futo-org/fcast/blob/master/LICENSE) |
+| FCast Sender | [MIT](https://github.com/futo-org/fcast/blob/master/LICENSE); the Linux formula also installs under [GPL-3.0](https://github.com/futo-org/fcast/blob/master/senders/extra/LICENSE-GPL), Slint's GPL option |
 | Flixor | [Flixor Public License](https://github.com/Flixorui/flixor/blob/main/LICENSE.md) |
 | Fred TV | [GPL-2.0](https://github.com/Fredolx/open-tv/blob/main/LICENSE) |
 | Paicord | [GPL-3.0](https://github.com/llsc12/Paicord/blob/main/LICENSE) |
