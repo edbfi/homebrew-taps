@@ -17,19 +17,21 @@ asset="$(basename "${asset_path}")"
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 
-# hosted_matches — download the hosted asset and compare it with ASSET_PATH.
-hosted_matches() {
+# download_hosted — download the hosted asset to ${work}/hosted/.
+download_hosted() {
   rm -rf "${work}/hosted"
   gh release download "${RELEASE_TAG}" --pattern "${asset}" --dir "${work}/hosted"
-  cmp -s "${asset_path}" "${work}/hosted/${asset}"
 }
 
-if release_json "${RELEASE_TAG}" "${work}/release.json"
+release="$(release_json "${RELEASE_TAG}" "${work}/release.json")"
+if [[ "${release}" == found ]]
 then
   count="$(jq --arg name "${asset}" '[.assets[] | select(.name == $name)] | length' "${work}/release.json")"
   if [[ "${count}" -eq 1 ]]
   then
-    hosted_matches || die "Hosted ${asset} differs from upstream; review the re-release before updating"
+    download_hosted
+    cmp -s "${asset_path}" "${work}/hosted/${asset}" ||
+      die "Hosted ${asset} differs from upstream; review the re-release before updating"
     log "Release ${RELEASE_TAG} already serves identical ${asset}; nothing to publish."
     exit 0
   fi
@@ -44,5 +46,7 @@ else
 fi
 
 # The cask URL must resolve, and to these bytes, before any cask names them.
-hosted_matches || die "Hosted ${asset} differs from upstream; review the re-release before updating"
+download_hosted
+cmp -s "${asset_path}" "${work}/hosted/${asset}" ||
+  die "Hosted ${asset} differs from upstream; review the re-release before updating"
 log "Rolling release ${RELEASE_TAG} now serves ${asset}."

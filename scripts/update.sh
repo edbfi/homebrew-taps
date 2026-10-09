@@ -26,7 +26,8 @@ source "$(dirname "$0")/lib/common.sh"
 
 self="${REPO_ROOT}/scripts/update.sh"
 # Per-cask deadlines (seconds) for the Linux stages, so one stalled download can't
-# use up the job: six casks stay within publish's 60 and push's 20 minutes.
+# use up the job. All casks together must fit the publish and push jobs' timeouts;
+# tests/test_updater.py checks that as casks are added.
 PUBLISH_DEADLINE="${PUBLISH_DEADLINE:-540}"
 PUSH_DEADLINE="${PUSH_DEADLINE:-150}"
 
@@ -64,10 +65,12 @@ first_attempt() {
 # resolve_into DIR TOKEN — run the resolver and the update check in DIR, leaving
 # resolved.txt and, unless the resolver skipped, check.txt.
 resolve_into() {
-  local dir="$1" token="$2"
+  local dir="$1" token="$2" skip member
   (cd "${dir}" && bash "${REPO_ROOT}/scripts/resolve.sh" "${token}") >"${dir}/resolved.txt"
-  [[ "$(field skip "${dir}/resolved.txt")" != true ]] || return 0
-  [[ -z "$(field archive_member "${dir}/resolved.txt")" ]] || die "${token}: the updater doesn't take archive downloads"
+  skip="$(field skip "${dir}/resolved.txt")"
+  [[ "${skip}" != true ]] || return 0
+  member="$(field archive_member "${dir}/resolved.txt")"
+  [[ -z "${member}" ]] || die "${token}: the updater doesn't take archive downloads"
   bash "${REPO_ROOT}/scripts/check-update.sh" "${token}" \
     "$(field version "${dir}/resolved.txt")" "$(field asset "${dir}/resolved.txt")" >"${dir}/check.txt"
 }
@@ -81,11 +84,13 @@ fetch_into() {
 }
 
 stage_check() {
-  local token="$1" out="$2" work version sha
+  local token="$1" out="$2" work skip needed=false version sha
   load_pipeline "${token}"
   work="$(mktemp -d)"
   resolve_into "${work}" "${token}"
-  if [[ "$(field skip "${work}/resolved.txt")" == true ]] || [[ "$(field needed "${work}/check.txt")" != true ]]
+  skip="$(field skip "${work}/resolved.txt")"
+  [[ "${skip}" == true ]] || needed="$(field needed "${work}/check.txt")"
+  if [[ "${needed}" != true ]]
   then
     log "${token}: no update."
     echo "claim=false"
@@ -120,22 +125,25 @@ stage_plan() {
 }
 
 publish_one() {
-  local token="$1" claim work version sha
+  local token="$1" claim work skip version needed newer sha
   load_pipeline "${token}"
   claim="$(intake_claim "claim-${token}-${GITHUB_RUN_ATTEMPT:?}")"
   read_claim "${claim}"
   work="$(mktemp -d)"
   resolve_into "${work}" "${token}"
-  [[ "$(field skip "${work}/resolved.txt")" != true ]] || die "${token}: upstream no longer resolves"
+  skip="$(field skip "${work}/resolved.txt")"
+  [[ "${skip}" != true ]] || die "${token}: upstream no longer resolves"
   version="$(field version "${work}/resolved.txt")"
   [[ "${version}" == "${CLAIM_VERSION}" ]] || die "${token}: upstream is ${version}, the claim ${CLAIM_VERSION}"
-  [[ "$(field needed "${work}/check.txt")" == true ]] || die "${token}: ${version} needs no update"
-  version_newer "${version}" "$(field previous_version "${work}/check.txt")" || die "${token}: ${version} is not newer"
+  needed="$(field needed "${work}/check.txt")"
+  [[ "${needed}" == true ]] || die "${token}: ${version} needs no update"
+  newer="$(version_newer "${version}" "$(field previous_version "${work}/check.txt")")"
+  [[ "${newer}" == true ]] || die "${token}: ${version} is not newer"
   sha="$(fetch_into "${work}")"
   [[ "${sha}" == "${CLAIM_SHA256}" ]] || die "${token}: the download hashes to ${sha}, the claim to ${CLAIM_SHA256}"
   VERSION="${version}" PREV_VERSION="$(field previous_version "${work}/check.txt")" \
-    REF="$(field ref "${work}/resolved.txt")" CHANGES_URL="$(field changes_url "${work}/resolved.txt")" \
-    ASSET="$(field asset "${work}/resolved.txt")" DOWNLOAD_URL="$(field download_url "${work}/resolved.txt")" \
+  REF="$(field ref "${work}/resolved.txt")" CHANGES_URL="$(field changes_url "${work}/resolved.txt")" \
+  ASSET="$(field asset "${work}/resolved.txt")" DOWNLOAD_URL="$(field download_url "${work}/resolved.txt")" \
     bash "${REPO_ROOT}/scripts/release-notes.sh" "${token}" >"${work}/notes.md"
   (cd "${work}" && bash "${REPO_ROOT}/scripts/publish-release.sh" "${token}" \
     "${work}/$(field asset "${work}/resolved.txt")" "${work}/notes.md") >&2
@@ -195,13 +203,14 @@ stage_verify() {
 recipe_body() { grep -Ev '^  (version|sha256) "' "$1"; }
 
 push_one() {
-  local token="$1" claim asset release verified clone tries current current_sha changed err
+  local token="$1" claim asset release found verified verified_body clone tries main_body current current_sha newer changed err
   load_pipeline "${token}"
   claim="$(intake_claim "checked-${token}-${GITHUB_RUN_ATTEMPT:?}")"
   read_claim "${claim}"
   asset="${ASSET_PREFIX}-${CLAIM_VERSION}.dmg"
   release="$(mktemp)"
-  release_json "${RELEASE_TAG}" "${release}" || die "${token}: rolling release ${RELEASE_TAG} is missing"
+  found="$(release_json "${RELEASE_TAG}" "${release}")"
+  [[ "${found}" == found ]] || die "${token}: rolling release ${RELEASE_TAG} is missing"
   jq -e --arg name "${asset}" --arg digest "sha256:${CLAIM_SHA256}" \
     '[.assets[] | select(.name == $name)] | length == 1 and .[0].state == "uploaded" and .[0].digest == $digest' \
     "${release}" >/dev/null || die "${token}: ${RELEASE_TAG} doesn't serve ${asset} with the claimed sha256"
@@ -210,11 +219,13 @@ push_one() {
   gh api "repos/${GH_REPO:?}/contents/${CASK_FILE}?ref=${VERIFIED_SHA:?VERIFIED_SHA is required}" --jq .content |
     base64 -d >"${verified}"
   [[ -s "${verified}" ]] || die "${token}: can't read the verified ${CASK_FILE}"
+  verified_body="$(recipe_body "${verified}")"
   for tries in 1 2 3
   do
     clone="$(mktemp -d)"
     git -c core.hooksPath=/dev/null clone --quiet --depth 1 --branch main "${UPDATER_REMOTE:?}" "${clone}"
-    [[ "$(recipe_body "${clone}/${CASK_FILE}")" == "$(recipe_body "${verified}")" ]] ||
+    main_body="$(recipe_body "${clone}/${CASK_FILE}")"
+    [[ "${main_body}" == "${verified_body}" ]] ||
       die "${token}: ${CASK_FILE} changed on main since it was verified; the next run redoes it"
     current="$(cask_version "${clone}/${CASK_FILE}")"
     current_sha="$(sed -n 's/^  sha256 "\(.*\)"$/\1/p' "${clone}/${CASK_FILE}")"
@@ -224,7 +235,8 @@ push_one() {
       log "${token}: main already has ${current}."
       return 0
     fi
-    version_newer "${CLAIM_VERSION}" "${current}" || die "${token}: ${CLAIM_VERSION} is not newer than main's ${current}"
+    newer="$(version_newer "${CLAIM_VERSION}" "${current}")"
+    [[ "${newer}" == true ]] || die "${token}: ${CLAIM_VERSION} is not newer than main's ${current}"
     bash "${REPO_ROOT}/scripts/write-cask.sh" "${clone}/${CASK_FILE}" "${CLAIM_VERSION}" "${CLAIM_SHA256}"
     [[ "$(git -C "${clone}" -c core.hooksPath=/dev/null status --porcelain)" == " M ${CASK_FILE}" ]] ||
       die "${token}: the rewrite changed more than ${CASK_FILE}"

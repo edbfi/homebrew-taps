@@ -20,6 +20,7 @@ die() {
 kv() {
   case "$3" in
     *$'\n'* | *$'\r'*) die "Refusing a multi-line value for $2" ;;
+    *) ;;
   esac
   printf '%s=%s\n' "$2" "$3" >>"$1"
 }
@@ -60,23 +61,39 @@ require_safe_version() {
   [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || die "Unsafe version string: '$1'"
 }
 
-# version_newer NEW OLD — true when NEW sorts strictly after OLD (LC_ALL=C sort -V).
+# version_newer NEW OLD — print true when NEW sorts strictly after OLD (LC_ALL=C sort -V),
+# else false. (Predicates print, so callers never test a function's status.)
 # sort -V is not upstream chronology, so these need a human: two date-hash builds of
 # one day (Paicord's YYYY-MM-DD-<sha>, which would order by hash), and Flixor's
 # beta2.4.0, which sorts after 1.0.0.
 version_newer() {
-  local day='^([0-9]{4}-[0-9]{2}-[0-9]{2})-[0-9a-f]+$' new_day
-  [[ "$1" != "$2" ]] || return 1
+  local day='^([0-9]{4}-[0-9]{2}-[0-9]{2})-[0-9a-f]+$' new_day newest
+  if [[ "$1" == "$2" ]]
+  then
+    echo false
+    return 0
+  fi
   if [[ "$1" =~ ${day} ]]
   then
     new_day="${BASH_REMATCH[1]}"
-    [[ "$2" =~ ${day} && "${BASH_REMATCH[1]}" == "${new_day}" ]] && return 1
+    if [[ "$2" =~ ${day} && "${BASH_REMATCH[1]}" == "${new_day}" ]]
+    then
+      echo false
+      return 0
+    fi
   fi
-  [[ "$(printf '%s\n%s\n' "$2" "$1" | LC_ALL=C sort -V | tail -n 1)" == "$1" ]]
+  newest="$(printf '%s\n%s\n' "$2" "$1" | LC_ALL=C sort -V | tail -n 1)"
+  if [[ "${newest}" == "$1" ]]
+  then
+    echo true
+  else
+    echo false
+  fi
 }
 
-# release_json TAG OUTFILE — this repository's release TAG as JSON. Returns 1 only
-# when the release doesn't exist (HTTP 404); any other failure is fatal.
+# release_json TAG OUTFILE — write this repository's release TAG to OUTFILE as JSON
+# and print found, or print missing when it doesn't exist (HTTP 404). Any other
+# failure is fatal.
 release_json() {
   local tag="$1" out="$2" err
   err="$(mktemp)"
@@ -85,12 +102,14 @@ release_json() {
     rm -f "${err}"
     jq -e --arg tag "${tag}" '.tag_name == $tag and (.assets | type) == "array"' "${out}" >/dev/null ||
       die "Malformed release ${tag}"
+    echo found
     return 0
   fi
   if grep -q 'HTTP 404' "${err}"
   then
     rm -f "${err}"
-    return 1
+    echo missing
+    return 0
   fi
   cat "${err}" >&2
   rm -f "${err}"

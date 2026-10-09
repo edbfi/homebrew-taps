@@ -24,7 +24,8 @@ echo "previous_version=${current_version}"
 
 if [[ "${current_version}" != "${new_version}" ]]
 then
-  version_newer "${new_version}" "${current_version}" ||
+  newer="$(version_newer "${new_version}" "${current_version}")"
+  [[ "${newer}" == true ]] ||
     die "Upstream ${new_version} is not newer than ${current_version} (sort -V); update ${CASK_TOKEN} by hand"
   echo "needed=true"
   echo "reason=version changed"
@@ -32,7 +33,8 @@ then
 fi
 
 tmp="$(mktemp)"
-release_json "${RELEASE_TAG}" "${tmp}" || die "Rolling release ${RELEASE_TAG} is missing; restore it by hand"
+release="$(release_json "${RELEASE_TAG}" "${tmp}")"
+[[ "${release}" == found ]] || die "Rolling release ${RELEASE_TAG} is missing; restore it by hand"
 jq -e --arg name "${asset}" '[.assets[] | select(.name == $name)] | length == 1' "${tmp}" >/dev/null ||
   die "Rolling release ${RELEASE_TAG} lacks ${asset}; restore it by hand"
 rm -f "${tmp}"

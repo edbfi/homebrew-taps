@@ -98,7 +98,8 @@ class HelperTests(UpdaterTestCase):
         for new, old, expected in cases:
             with self.subTest(new=new, old=old):
                 result = self.bash(f'version_newer "{new}" "{old}"')
-                self.assertEqual(result.returncode == 0, expected)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), str(expected).lower())
 
     def test_read_claim_accepts_only_exact_claims(self):
         good = claim("7.2", "a" * 64)
@@ -120,7 +121,7 @@ class HelperTests(UpdaterTestCase):
 
     def test_release_json_tells_missing_from_failing(self):
         self.release("qview-latest", **{"qView-7.1.dmg": "bytes"})
-        probe = 'if release_json "$TAG" out.json; then echo found; else echo missing; fi'
+        probe = 'release_json "$TAG" out.json'
         self.assertEqual(self.bash(probe, env={"TAG": "qview-latest"}).stdout.strip(), "found")
         self.assertEqual(self.bash(probe, env={"TAG": "absent"}).stdout.strip(), "missing")
         failing = self.bash(probe, env={"TAG": "qview-latest", "FAKE_GH_API_STATUS": "500"})
@@ -138,6 +139,21 @@ class HelperTests(UpdaterTestCase):
         for name in ("two", "renamed", "linked", "absent"):
             with self.subTest(artifact=name):
                 self.assertNotEqual(self.bash(f"intake_claim {name}").returncode, 0)
+
+
+class DeadlineTests(unittest.TestCase):
+    def test_per_cask_deadlines_fit_the_job_timeouts(self):
+        # Adding a cask must not let a job timeout cut off the last casks.
+        import re
+        script = (ROOT / "scripts/update.sh").read_text()
+        workflow = (ROOT / ".github/workflows/update-casks.yml").read_text()
+        casks = json.loads(subprocess.run(["bash", str(ROOT / "scripts/discover.sh")], capture_output=True,
+                                          text=True, check=True).stdout)["cask"]
+        for stage, job in (("PUBLISH", "publish"), ("PUSH", "push")):
+            with self.subTest(job=job):
+                deadline = int(re.search(rf'{stage}_DEADLINE="\$\{{{stage}_DEADLINE:-(\d+)\}}"', script)[1])
+                minutes = int(re.search(rf"\n  {job}:\n(?:    .*\n)*?    timeout-minutes: (\d+)", workflow)[1])
+                self.assertLess(len(casks) * (deadline + 10), minutes * 60 - 120)
 
 
 class ResolverRecordTests(UpdaterTestCase):
