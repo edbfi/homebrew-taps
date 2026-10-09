@@ -14,7 +14,10 @@ sha256="${3:?SHA256}"
 
 require_safe_version "${version}"
 [[ "${sha256}" =~ ^[0-9a-f]{64}$ ]] || die "Not a SHA256: ${sha256}"
-[[ -f "${cask_file}" ]] || die "No such cask file: ${cask_file}"
+[[ -f "${cask_file}" && ! -L "${cask_file}" ]] || die "No such cask file: ${cask_file}"
+command -v ruby >/dev/null 2>&1 || die "Ruby is required to validate ${cask_file}"
+[[ "$(grep -c '^  version "' "${cask_file}")" -eq 1 && "$(grep -c '^  sha256 "' "${cask_file}")" -eq 1 ]] ||
+  die "${cask_file} must have exactly one version and one sha256 line"
 
 # No `sed -i`: its syntax differs between GNU and BSD sed, and the old workflows'
 # in-place edit could silently no-op. Write to a temp file, then replace.
@@ -26,10 +29,7 @@ mv -f "${tmp}" "${cask_file}"
 grep -Fxq "  version \"${version}\"" "${cask_file}" || die "version line was not rewritten in ${cask_file}; check its formatting"
 grep -Fxq "  sha256 \"${sha256}\"" "${cask_file}" || die "sha256 line was not rewritten in ${cask_file}; check its formatting"
 
-if command -v ruby >/dev/null 2>&1
-then
-  ruby -c "${cask_file}" >/dev/null || die "${cask_file} is not valid Ruby after rewrite"
-fi
+ruby -c "${cask_file}" >/dev/null || die "${cask_file} is not valid Ruby after rewrite"
 
 log "Updated ${cask_file} to ${version} (${sha256})"
 cat "${cask_file}" >&2

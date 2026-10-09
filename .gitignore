@@ -8,7 +8,6 @@ release.json
 releases-*.json
 runs.json
 commit.json
-existing-assets.txt
 
 # Python fixture bytecode
 __pycache__/
