@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -144,7 +145,6 @@ class HelperTests(UpdaterTestCase):
 class DeadlineTests(unittest.TestCase):
     def test_per_cask_deadlines_fit_the_job_timeouts(self):
         # Adding a cask must not let a job timeout cut off the last casks.
-        import re
         script = (ROOT / "scripts/update.sh").read_text()
         workflow = (ROOT / ".github/workflows/update-casks.yml").read_text()
         casks = json.loads(subprocess.run(["bash", str(ROOT / "scripts/discover.sh")], capture_output=True,
