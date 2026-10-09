@@ -1,8 +1,8 @@
 # This cask is updated by the tap pipeline (pipelines/paicord/).
 # Do not edit the version or sha256 lines manually.
 cask "paicord" do
-  version "2026-09-16-e1f9503"
-  sha256 "61595eee098e9192fb4702f7bf9c25a56462bc78af9620d8604b2de61c6964a5"
+  version "2026-09-27-5c76f36"
+  sha256 "1a963d39547b803802baa14587b47f5bf6499618dd8c74c0216dc06f5755769d"
 
   url "https://github.com/edbfi/homebrew-taps/releases/download/paicord-latest/Paicord-#{version}.dmg"
   name "Paicord"
