@@ -22,6 +22,7 @@ This tap only re-packages other people's work. If an app earns a place in your D
 | **Paicord** | [![GitHub Sponsors: llsc12](https://img.shields.io/badge/GitHub%20Sponsors-llsc12-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/llsc12) |
 | **FCast Sender** | No donation page. [Star the project](https://github.com/futo-org/fcast), file bugs, contribute. |
 | **qView** | No donation page. [Star the project](https://github.com/jurplel/qView), file bugs, contribute. |
+| **qBittorrent** | [Donate to the developers and server costs](https://www.qbittorrent.org/donate) |
 
 **Support this tap.** The pipeline, hosting, and upkeep are done by [@edbfi](https://github.com/edbfi). Monero is welcome:
 
@@ -39,12 +40,14 @@ This tap only re-packages other people's work. If an app earns a place in your D
 | [Flixor](https://github.com/Flixorui/flixor) | `brew install --cask edbfi/taps/flixor` | macOS 13+ |
 | [Fred TV](https://github.com/Fredolx/open-tv) | `brew install --cask edbfi/taps/fredtv` | macOS, `mpv`, `ffmpeg`, `yt-dlp` (installed for you) |
 | [Paicord](https://github.com/llsc12/Paicord) | `brew install --cask edbfi/taps/paicord` | macOS 14+ |
+| [qBittorrent](https://www.qbittorrent.org/) | `brew install --cask edbfi/taps/qbittorrent` | macOS 13+ |
 | [qView](https://github.com/jurplel/qView) | `brew install --cask edbfi/taps/qview` | macOS 12+ |
 
-Casks live in `Casks/<category>/`: `media/` holds FCast Sender, Flixor, Fred TV and qView; `social/` holds Paicord. The category is only a folder; the install command never changes.
+Casks live in `Casks/<category>/`: `media/` holds FCast Sender, Flixor, Fred TV and qView; `network/` holds qBittorrent; `social/` holds Paicord. The category is only a folder; the install command never changes.
 
 ### App notes
 
+- **qBittorrent** packages the standard stable desktop DMG (Qt 6/libtorrent 1.2), not the separate `qbittorrent-cli` client or `lt20` variant. Upstream signs the universal `qbittorrent.app` with its own self-issued certificate, not an Apple Developer ID, so the cask installs it as `qBittorrent.app` and removes quarantine after installation. Updates wait until the latest stable release includes the standard DMG. If migrating from Homebrew's disabled macOS cask, run `brew uninstall --cask homebrew/cask/qbittorrent` without `--zap`, then `brew install --cask edbfi/taps/qbittorrent` to preserve settings and torrent state.
 - **FCast Sender** ships only an `aarch64` build, so Intel Macs are not supported. The app is signed and notarized by FUTO, so no quarantine workaround is applied. Versions drop the pre-release suffix the upstream tag carries: `sender-0.0.3-beta` becomes `0.0.3`.
 - **Flixor** versions match upstream tags such as `beta2.4.0`. The app bundle is `FlixorMac.app`.
 - **Fred TV** depends on the `mpv` formula, which Homebrew installs alongside it. Versions strip a leading `v` (`v1.9.1` becomes `1.9.1`).
@@ -85,7 +88,7 @@ brew untap edbfi/taps
 ## Linux packages
 
 qView, Fred TV and FCast's desktop Sender also have Linux source formulae for
-ARM64 and x86_64. Flixor and Paicord remain macOS-only. Use an explicit package
+ARM64 and x86_64. Flixor, Paicord and qBittorrent are packaged only for macOS in this tap. Use an explicit package
 kind when a formula and cask share a name:
 
 ```sh
@@ -135,6 +138,8 @@ Three files:
 2. `pipelines/<app>/config.env` with the display name, upstream repo, asset prefix and donation links.
 3. `pipelines/<app>/resolve.sh` that writes `version` and `download_url` (see the existing resolvers and the contract at the top of `scripts/resolve.sh`).
 
+Then register the app's bundle name, identifier and architectures in `scripts/inspect-macos.py` and add resolver fixtures to `scripts/tests/test_pipeline.py`. CI finds the new cask on its own.
+
 `bash scripts/discover.sh` should then list the new app, and `GH_TOKEN=$(gh auth token) bash scripts/resolve.sh <app>` should print its current version.
 
 ## License and attribution
@@ -147,4 +152,5 @@ This is an unofficial, community-maintained tap, not affiliated with any of the 
 | Flixor | [Flixor Public License](https://github.com/Flixorui/flixor/blob/main/LICENSE.md) |
 | Fred TV | [GPL-2.0](https://github.com/Fredolx/open-tv/blob/main/LICENSE) |
 | Paicord | [GPL-3.0](https://github.com/llsc12/Paicord/blob/main/LICENSE) |
+| qBittorrent | [GPL-3.0-or-later binary distribution, with OpenSSL exception](https://github.com/qbittorrent/qBittorrent/blob/release-5.2.3/COPYING) |
 | qView | [GPL-3.0](https://github.com/jurplel/qView/blob/main/LICENSE) |
