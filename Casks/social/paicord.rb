@@ -1,4 +1,4 @@
-# This cask is auto-updated by the update-casks workflow (pipelines/paicord/).
+# This cask is updated by the tap pipeline (pipelines/paicord/).
 # Do not edit the version or sha256 lines manually.
 cask "paicord" do
   version "2026-09-16-e1f9503"

@@ -1,4 +1,4 @@
-# This cask is auto-updated by the update-casks workflow (pipelines/qview/).
+# This cask is updated by the tap pipeline (pipelines/qview/).
 # Do not edit the version or sha256 lines manually.
 cask "qview" do
   version "7.1"

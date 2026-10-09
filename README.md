@@ -123,7 +123,7 @@ flowchart LR
 - `scripts/discover.sh` lists every `pipelines/<app>/` directory; the shared pipeline scripts run once per app, one at a time.
 - `pipelines/<app>/resolve.sh` is the only app-specific code: it finds the newest upstream build and validates the tag and asset name strictly before anything else runs.
 - The DMG is downloaded, hashed, and attached to this repository's rolling `<app>-latest` release, and the cask's `version` and `sha256` lines are rewritten in a PR for manual review. Every release page carries the upstream reference and the checksum source.
-- `brew style`, `brew audit`, and shellcheck run locally.
+- CI runs on every PR, each push to `main` and weekly. It runs the prek hooks (`bash -n`, shellcheck and both offline test trees), `scripts/check-casks.sh` on macOS (`brew readall`, `brew style`, `brew audit --cask`) and `scripts/check-formulae.sh` on Linux x86_64 and ARM64, which builds and tests the changed formulae (all of them weekly). Run the same commands locally: `prek run --all-files --hook-stage manual`, `bash scripts/check-casks.sh`, `bash scripts/check-formulae.sh`.
 
 Releases: <https://github.com/edbfi/homebrew-taps/releases>
 

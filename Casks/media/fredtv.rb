@@ -1,4 +1,4 @@
-# This cask is auto-updated by the update-casks workflow (pipelines/fredtv/).
+# This cask is updated by the tap pipeline (pipelines/fredtv/).
 # Do not edit the version or sha256 lines manually.
 cask "fredtv" do
   version "1.9.1"
