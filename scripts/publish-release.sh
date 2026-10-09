@@ -21,7 +21,7 @@ then
   then
     log "Release ${RELEASE_TAG} already contains ${asset}; leaving the existing asset in place."
   else
-    gh release upload "${RELEASE_TAG}" "${asset_path}" --clobber
+    gh release upload "${RELEASE_TAG}" "${asset_path}"
   fi
   gh release edit "${RELEASE_TAG}" --title "${RELEASE_TITLE}" --notes-file "${notes_file}"
 else
