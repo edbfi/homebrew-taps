@@ -34,14 +34,16 @@ This tap only re-packages other people's work. If an app earns a place in your D
 
 ## Apps
 
-| App | Install | Requires |
+| App | macOS cask | Linux formula |
 | --- | --- | --- |
-| [FCast Sender](https://fcast.org/) | `brew install --cask edbfi/taps/fcast-sender` | Apple Silicon, macOS 11+ |
-| [Flixor](https://github.com/Flixorui/flixor) | `brew install --cask edbfi/taps/flixor` | macOS 13+ |
-| [Fred TV](https://github.com/Fredolx/open-tv) | `brew install --cask edbfi/taps/fredtv` | macOS, `mpv`, `ffmpeg`, `yt-dlp` (installed for you) |
-| [Paicord](https://github.com/llsc12/Paicord) | `brew install --cask edbfi/taps/paicord` | macOS 14+ |
-| [qBittorrent](https://www.qbittorrent.org/) | `brew install --cask edbfi/taps/qbittorrent` | macOS 13+ |
-| [qView](https://github.com/jurplel/qView) | `brew install --cask edbfi/taps/qview` | macOS 12+ |
+| [FCast Sender](https://fcast.org/) | Apple Silicon, macOS 11+ | ARM64 / x86_64 |
+| [Flixor](https://github.com/Flixorui/flixor) | Universal, macOS 13+ | — |
+| [Fred TV](https://github.com/Fredolx/open-tv) | Universal; installs `mpv`, `ffmpeg` and `yt-dlp` | ARM64 / x86_64 |
+| [Paicord](https://github.com/llsc12/Paicord) | Universal, macOS 14+ | — |
+| [qBittorrent](https://www.qbittorrent.org/) | Universal, macOS 13+ | — |
+| [qView](https://github.com/jurplel/qView) | Universal, macOS 12+ | ARM64 / x86_64 |
+
+Install with `brew install --cask edbfi/taps/<app>` on macOS or `brew install --formula edbfi/taps/<app>` on Linux; tokens are `fcast-sender`, `flixor`, `fredtv`, `paicord`, `qbittorrent` and `qview`. Name the package kind where both exist. An app's minimum macOS version is not a promise of Homebrew support on that version; see [platform support](docs/platform-support.md) for tested versions and limits.
 
 Casks live in `Casks/<category>/`: `media/` holds FCast Sender, Flixor, Fred TV and qView; `network/` holds qBittorrent; `social/` holds Paicord. The category is only a folder; the install command never changes.
 
@@ -50,7 +52,7 @@ Casks live in `Casks/<category>/`: `media/` holds FCast Sender, Flixor, Fred TV 
 - **qBittorrent** packages the standard stable desktop DMG (Qt 6/libtorrent 1.2), not the separate `qbittorrent-cli` client or `lt20` variant. Upstream signs the universal `qbittorrent.app` with its own self-issued certificate, not an Apple Developer ID, so the cask installs it as `qBittorrent.app` and removes quarantine after installation. Updates wait until the latest stable release includes the standard DMG. If migrating from Homebrew's disabled macOS cask, run `brew uninstall --cask homebrew/cask/qbittorrent` without `--zap`, then `brew install --cask edbfi/taps/qbittorrent` to preserve settings and torrent state.
 - **FCast Sender** ships only an `aarch64` build, so Intel Macs are not supported. The app is signed and notarized by FUTO, so no quarantine workaround is applied. Versions drop the pre-release suffix the upstream tag carries: `sender-0.0.3-beta` becomes `0.0.3`.
 - **Flixor** versions match upstream tags such as `beta2.4.0`. The app bundle is `FlixorMac.app`.
-- **Fred TV** depends on the `mpv` formula, which Homebrew installs alongside it. Versions strip a leading `v` (`v1.9.1` becomes `1.9.1`).
+- **Fred TV** depends on the `mpv`, `ffmpeg` and `yt-dlp` formulae, which Homebrew installs alongside it. Versions strip a leading `v` (`v1.9.1` becomes `1.9.1`).
 - **Paicord** uses the immutable upstream release belonging to the newest successful main build. Each cask version is `YYYY-MM-DD-<short sha>`; the release tag must match that exact build commit.
 
   > [!WARNING]
@@ -62,7 +64,7 @@ Flixor, Fred TV, Paicord and qView are distributed unsigned upstream; each of th
 
 ## Install, update, uninstall
 
-Use the cask token from the [Apps](#apps) table (e.g. `fcast-sender`) for `<app>` below.
+Run `brew update` before installing. Use the cask token from the [Apps](#apps) table (e.g. `fcast-sender`) for `<app>` below.
 
 ```bash
 # Install (taps the repository automatically)
@@ -87,27 +89,22 @@ brew untap edbfi/taps
 
 ## Linux packages
 
-qView, Fred TV and FCast's desktop Sender also have Linux source formulae for
-ARM64 and x86_64. Flixor, Paicord and qBittorrent are packaged only for macOS in this tap. Use an explicit package
-kind when a formula and cask share a name:
+qView, Fred TV and FCast's desktop Sender have Linux formulae for ARM64 and x86_64; Flixor, Paicord and qBittorrent are macOS-only in this tap. They build from source with Homebrew's default prefix, `/home/linuxbrew/.linuxbrew`; no Linux bottles are published yet, and Fred TV stays source-only pending upstream license clarification. Rust builds can take tens of minutes and several GB of disk. Formula source updates require a reviewed PR.
 
 ```sh
 brew install --formula edbfi/taps/qview
-brew install --formula edbfi/taps/fredtv
-brew install --formula edbfi/taps/fcast-sender
+qview picture.png
+brew upgrade --formula edbfi/taps/qview
+brew uninstall --formula edbfi/taps/qview
 ```
 
-These build from source; no Linux bottles are published by this rollout. Fred TV
-remains source-only pending the existing upstream licensing clarification.
-Formula source updates require a reviewed PR.
+The other launch commands are `fredtv` and `fcast-sender`. To show the launchers and icons in your desktop menu, add this to your session's environment and log in again:
 
-Use Homebrew's default Linux prefix on a supported host. Your desktop supplies
-X11 or Wayland, D-Bus and audio; FCast capture additionally needs PipeWire and a
-compatible ScreenCast portal. The tap installs a GStreamer plugin but starts no
-session services. Add `/home/linuxbrew/.linuxbrew/share` to your session's
-`XDG_DATA_DIRS` to expose desktop launchers. Uninstall preserves user settings.
-See [platform support and historical validation](docs/platform-support.md) for
-source versions, desktop requirements and untested hardware features.
+```sh
+export XDG_DATA_DIRS="/home/linuxbrew/.linuxbrew/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+```
+
+Your desktop supplies X11 or Wayland, a session D-Bus and audio; FCast screen sharing also needs PipeWire and a compatible `xdg-desktop-portal` ScreenCast backend. The tap installs a GStreamer PipeWire plugin but starts no session services. Uninstalling removes the launcher, desktop entry, icons and binaries and keeps settings; formulae have no `--zap`. Review unused dependencies with `brew autoremove --dry-run`. Don't run the GUI apps with `sudo`. See [platform support and historical validation](docs/platform-support.md) for source versions, desktop requirements and untested hardware features.
 
 ## How it works
 
@@ -154,3 +151,4 @@ This is an unofficial, community-maintained tap, not affiliated with any of the 
 | Paicord | [GPL-3.0](https://github.com/llsc12/Paicord/blob/main/LICENSE) |
 | qBittorrent | [GPL-3.0-or-later binary distribution, with OpenSSL exception](https://github.com/qbittorrent/qBittorrent/blob/release-5.2.3/COPYING) |
 | qView | [GPL-3.0](https://github.com/jurplel/qView/blob/main/LICENSE) |
+| PipeWire GStreamer plugin (Linux) | [MIT](https://gitlab.freedesktop.org/pipewire/pipewire/-/blob/master/COPYING) |

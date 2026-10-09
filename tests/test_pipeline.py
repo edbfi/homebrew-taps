@@ -16,7 +16,7 @@ class PipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             fake = work / "gh"
-            fake.write_text("#!/usr/bin/env python3\nimport json, os, sys\nfrom pathlib import Path\np=Path(os.environ['CALLS'])\nwith p.open('a') as f: f.write(json.dumps(sys.argv[1:])+'\\n')\nif sys.argv[1:3]==['release','view']: print('qView-7.1.dmg')\nif sys.argv[1:3]==['release','download']: (Path(sys.argv[sys.argv.index('--dir')+1])/'qView-7.1.dmg').write_bytes(os.environ.get('HOSTED_BYTES','fixture').encode())\n")
+            fake.write_text("#!/usr/bin/env python3\nimport json, os, sys\nfrom pathlib import Path\np=Path(os.environ['CALLS'])\nwith p.open('a') as f: f.write(json.dumps(sys.argv[1:])+'\\n')\nup=p.with_suffix('.uploaded')\nif sys.argv[1:3]==['release','upload']: up.write_text(Path(sys.argv[4]).name)\nif sys.argv[1:3]==['release','view']: print(os.environ.get('EXISTING','qView-7.1.dmg')); up.exists() and print(up.read_text())\nif sys.argv[1:3]==['release','download']: (Path(sys.argv[sys.argv.index('--dir')+1])/'qView-7.1.dmg').write_bytes(os.environ.get('HOSTED_BYTES','fixture').encode())\n")
             fake.chmod(0o755)
             asset = work / "qView-7.1.dmg"
             asset.write_bytes(b"fixture")
@@ -37,6 +37,15 @@ class PipelineTests(unittest.TestCase):
             self.assertNotEqual(mismatch.returncode, 0)
             self.assertIn("differs from upstream", mismatch.stderr)
             self.assertEqual(asset.read_bytes(), b"fixture")
+            env.pop("HOSTED_BYTES")
+            calls.unlink()
+            env["EXISTING"] = "qView-7.0.dmg"
+            upload = subprocess.run(["bash", str(ROOT / "scripts/publish-release.sh"), "qview", str(asset), str(notes)],
+                                    cwd=work, env=env, capture_output=True, text=True)
+            self.assertEqual(upload.returncode, 0, upload.stderr)
+            uploads = [c for c in map(json.loads, calls.read_text().splitlines()) if c[:2] == ["release", "upload"]]
+            self.assertEqual(len(uploads), 1)
+            self.assertNotIn("--clobber", uploads[0])
 
     def rewrite(self, version="1.2.3", digest="b" * 64, content=CASK):
         with tempfile.TemporaryDirectory() as directory:
