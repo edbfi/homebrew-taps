@@ -1,8 +1,8 @@
 # This cask is updated by the tap pipeline (pipelines/updater-probe-b/).
 # Do not edit the version or sha256 lines manually.
 cask "updater-probe-b" do
-  version "0.0.1"
-  sha256 "5f0b2f4c7b1a3e9d8c6a4b2e0f1d3c5b7a9e8d6c4b2a0f1e3d5c7b9a8e6d4c2b"
+  version "0.0.2"
+  sha256 "01ce64a1a5d9a29c2a8ebeb50dac85cb0ea59418aa01212bbeb41d2b58c59088"
 
   url "https://github.com/edbfi/homebrew-taps/releases/download/updater-probe-b-latest/UpdaterProbeB-#{version}.dmg"
   name "Updater Probe B"
