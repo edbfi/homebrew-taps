@@ -16,9 +16,6 @@ import json, os, pathlib, sys
 args = sys.argv[1:]
 routes = json.loads(pathlib.Path(os.environ["ROUTES"]).read_text())
 status, body = routes.get(args[-1], [404, {}])
-if body == "stall":
-    import time
-    time.sleep(60)
 data = body if isinstance(body, str) else json.dumps(body)
 pathlib.Path(args[args.index("-o") + 1]).write_text(data)
 if "-w" in args:
