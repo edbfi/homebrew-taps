@@ -165,6 +165,7 @@ load_pipeline() {
   PACKAGE_KINDS=cask
   FORMULA_SOURCE=""
   FORMULA_TAG_RE=""
+  UPDATE_MINUTES=20
   export FORMULA_SOURCE FORMULA_TAG_RE
   # shellcheck disable=SC1091
   source "${PIPELINE_DIR}/config.env"
@@ -177,6 +178,9 @@ load_pipeline() {
   then
     [[ -f "${PIPELINE_DIR}/resolve.sh" ]] || die "Missing cask resolver for ${cask}"
     CASK_FILE="$(find_cask_file "${cask}")"
+    # Each of the cask's updater jobs gets this many minutes (default 20).
+    [[ "${UPDATE_MINUTES}" =~ ^[1-9][0-9]?$ && "${UPDATE_MINUTES}" -le 60 ]] ||
+      die "${cask}: UPDATE_MINUTES must be a whole number from 1 to 60"
   else
     FORMULA_FILE="Formula/${cask}.rb"
     [[ -f "${REPO_ROOT}/${FORMULA_FILE}" ]] || die "Missing ${FORMULA_FILE}"
@@ -184,7 +188,20 @@ load_pipeline() {
   fi
   RELEASE_TAG="${cask}-latest"
   RELEASE_TITLE="${DISPLAY_NAME} (latest)"
-  export PIPELINE_DIR CASK_TOKEN CASK_FILE RELEASE_TAG RELEASE_TITLE
+  export PIPELINE_DIR CASK_TOKEN CASK_FILE RELEASE_TAG RELEASE_TITLE UPDATE_MINUTES
   export DISPLAY_NAME UPSTREAM_URL ASSET_PREFIX
   export UPSTREAM_REPO="${UPSTREAM_REPO:-}" DONATE_LINKS="${DONATE_LINKS:-}"
+}
+
+# cask_matrix [TOKEN...] — the updater's job matrix for these casks, as a compact JSON
+# array of {"cask": TOKEN, "minutes": UPDATE_MINUTES}.
+cask_matrix() {
+  local token
+  for token in "$@"
+  do
+    (
+      load_pipeline "${token}"
+      jq -nc --arg cask "${token}" --argjson minutes "${UPDATE_MINUTES}" '{cask: $cask, minutes: $minutes}'
+    )
+  done | jq -cs .
 }

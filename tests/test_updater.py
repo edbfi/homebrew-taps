@@ -280,11 +280,44 @@ class StageTests(UpdaterTestCase):
             self.artifact(name, {"claim.env": "x"})
         result = self.update("plan", '["qview", "flixor", "paicord"]')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), 'casks=["qview"]')
-        self.assertEqual(self.update("plan", "[]").stdout.strip(), "casks=[]")
+        self.assertEqual(result.stdout.splitlines(), ['casks=["qview"]', 'matrix=[{"cask":"qview","minutes":20}]'])
+        self.assertEqual(self.update("plan", "[]").stdout.splitlines(), ["casks=[]", "matrix=[]"])
         for bad in ('["../x"]', '"qview"', "[1]"):
             with self.subTest(casks=bad):
                 self.assertNotEqual(self.update("plan", bad).returncode, 0)
+
+    def test_published_and_verified_list_their_own_artifacts(self):
+        for name in ("claim-qview-1", "published-flixor-1", "published-paicord-2", "checked-fredtv-1"):
+            self.artifact(name, {"claim.env": "x"})
+        everything = '["qview", "flixor", "paicord", "fredtv"]'
+        for stage, token in (("published", "flixor"), ("verified", "fredtv")):
+            with self.subTest(stage=stage):
+                result = self.update(stage, everything)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.splitlines(),
+                                 [f'casks=["{token}"]', f'matrix=[{{"cask":"{token}","minutes":20}}]'])
+        self.assertEqual(self.update("published", '["qview"]').stdout.splitlines(), ["casks=[]", "matrix=[]"])
+
+    def test_publish_one_hands_on_the_claim(self):
+        self.qview_upstream("7.2", "qview 7.2")
+        body = claim("7.2", sha("qview 7.2"))
+        self.artifact("claim-qview-1", {"claim.env": body})
+        result = self.update("publish-one", "qview", self.tmp / "published")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.state / "releases/qview-latest/qView-7.2.dmg").read_text(), "qview 7.2")
+        self.assertEqual((self.tmp / "published/claim.env").read_text(), body)
+        rerun = self.update("publish-one", "qview", self.tmp / "again", GITHUB_RUN_ATTEMPT="2")
+        self.assertNotEqual(rerun.returncode, 0)
+        self.assertIn("start a new run", rerun.stderr)
+        self.assertFalse((self.tmp / "again").exists())
+
+    def test_publish_one_hands_on_nothing_it_did_not_publish(self):
+        self.qview_upstream("7.2", "qview 7.2")
+        self.artifact("claim-qview-1", {"claim.env": claim("7.2", "b" * 64)})
+        result = self.update("publish-one", "qview", self.tmp / "published")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.tmp / "published").exists())
+        self.assertFalse((self.state / "releases/qview-latest").exists())
 
     def test_publish_rederives_each_claim(self):
         self.qview_upstream("7.2", "qview 7.2")
@@ -364,6 +397,19 @@ class PushStageTests(UpdaterTestCase):
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertIn("main already has 7.2", again.stderr)
         self.assertEqual(self.commits().count("chore(qview)"), 1)
+
+    def test_push_one_pushes_one_cask(self):
+        self.checked("qview", "qView", "7.2", "qview 7.2")
+        result = self.run_script(ROOT / "scripts/update.sh", "push-one", "qview")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f'sha256 "{sha("qview 7.2")}"', self.origin_file("Casks/media/qview.rb"))
+        self.assertEqual(self.commits().count("chore(qview): update to 7.2"), 1)
+        rerun = self.run_script(ROOT / "scripts/update.sh", "push-one", "qview", env={"GITHUB_RUN_ATTEMPT": "2"})
+        self.assertNotEqual(rerun.returncode, 0)
+        self.assertIn("start a new run", rerun.stderr)
+        unknown = self.run_script(ROOT / "scripts/update.sh", "push-one", "../qview")
+        self.assertNotEqual(unknown.returncode, 0)
+        self.assertIn("Invalid cask token", unknown.stderr)
 
     def test_one_failing_cask_does_not_stop_the_others(self):
         self.checked("flixor", "Flixor", "beta2.5.0", "flixor")

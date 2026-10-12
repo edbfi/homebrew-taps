@@ -13,14 +13,20 @@
 #                                           validate; write OUTDIR/claim.env when TOKEN
 #                                           needs an update. Prints claim=true|false.
 #   scripts/update.sh plan CASKS_JSON       the tokens with a claim artifact in this
-#                                           attempt. Prints casks=<json>.
+#                                           attempt. Prints casks=<json> and matrix=<json>
+#                                           (cask_matrix in lib/common.sh).
 #   scripts/update.sh publish CASKS_JSON    job 2: re-derive each claim and publish the
 #                                           rolling release. Prints published=<json>.
+#   scripts/update.sh publish-one TOKEN OUTDIR
+#                                           job 2 for one cask; copy the claim to OUTDIR.
+#   scripts/update.sh published CASKS_JSON  like plan, for published-TOKEN-ATTEMPT.
 #   scripts/update.sh verify TOKEN OUTDIR   job 3 (macOS): fetch the published download
 #                                           through the rewritten cask; copy the claim
 #                                           to OUTDIR.
+#   scripts/update.sh verified CASKS_JSON   like plan, for checked-TOKEN-ATTEMPT.
 #   scripts/update.sh push CASKS_JSON       job 4: rewrite and push each verified cask
 #                                           from a fresh clone of $UPDATER_REMOTE's main.
+#   scripts/update.sh push-one TOKEN        job 4 for one cask.
 # shellcheck source=SCRIPTDIR/lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
@@ -108,24 +114,28 @@ stage_check() {
   echo "claim=true"
 }
 
-stage_plan() {
-  local names tokens token selected=()
-  tokens="$(tokens_from "$1")"
+# stage_listed PREFIX CASKS_JSON — the tokens with a PREFIX-TOKEN-ATTEMPT artifact in
+# this attempt, as casks=<json> and matrix=<json>.
+stage_listed() {
+  local prefix="$1" names tokens token selected=()
+  tokens="$(tokens_from "$2")"
   names="$(gh api --paginate "repos/${GH_REPO:?GH_REPO is required}/actions/runs/${GITHUB_RUN_ID:?}/artifacts?per_page=100" \
     --jq '.artifacts[] | select(.expired | not) | .name')"
   while IFS= read -r token
   do
     [[ -n "${token}" ]] || continue
-    if grep -Fxq -- "claim-${token}-${GITHUB_RUN_ATTEMPT:?}" <<<"${names}"
+    if grep -Fxq -- "${prefix}-${token}-${GITHUB_RUN_ATTEMPT:?}" <<<"${names}"
     then
       selected+=("${token}")
     fi
   done <<<"${tokens}"
   echo "casks=$(json_array ${selected[@]+"${selected[@]}"})"
+  echo "matrix=$(cask_matrix ${selected[@]+"${selected[@]}"})"
 }
 
+# publish_one TOKEN [OUTDIR] — with OUTDIR, copy the claim there once published.
 publish_one() {
-  local token="$1" claim work skip version needed newer sha
+  local token="$1" out="${2:-}" claim work skip version needed newer sha
   load_pipeline "${token}"
   claim="$(intake_claim "claim-${token}-${GITHUB_RUN_ATTEMPT:?}")"
   read_claim "${claim}"
@@ -147,6 +157,7 @@ publish_one() {
     bash "${REPO_ROOT}/scripts/release-notes.sh" "${token}" >"${work}/notes.md"
   (cd "${work}" && bash "${REPO_ROOT}/scripts/publish-release.sh" "${token}" \
     "${work}/$(field asset "${work}/resolved.txt")" "${work}/notes.md") >&2
+  [[ -z "${out}" ]] || { mkdir -p "${out}" && cp "${claim}" "${out}/claim.env"; }
 }
 
 stage_publish() {
@@ -276,11 +287,15 @@ stage_push() {
 
 case "${1:-}" in
   check) stage_check "${2:?TOKEN}" "${3:?OUTDIR}" ;;
-  plan) stage_plan "${2:?CASKS_JSON}" ;;
+  plan) stage_listed claim "${2:?CASKS_JSON}" ;;
   publish) stage_publish "${2:?CASKS_JSON}" ;;
   _publish) publish_one "${2:?TOKEN}" ;;
+  publish-one) first_attempt; publish_one "${2:?TOKEN}" "${3:?OUTDIR}" ;;
+  published) stage_listed published "${2:?CASKS_JSON}" ;;
   verify) stage_verify "${2:?TOKEN}" "${3:?OUTDIR}" ;;
+  verified) stage_listed checked "${2:?CASKS_JSON}" ;;
   push) stage_push "${2:?CASKS_JSON}" ;;
   _push) push_one "${2:?TOKEN}" ;;
-  *) die "usage: update.sh check|plan|publish|verify|push …" ;;
+  push-one) first_attempt; push_one "${2:?TOKEN}" ;;
+  *) die "usage: update.sh check|plan|publish|publish-one|published|verify|verified|push|push-one …" ;;
 esac
