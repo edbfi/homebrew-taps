@@ -118,10 +118,10 @@ flowchart LR
     F --> G[push version + sha256<br/>to main]
 ```
 
-- [`update-casks.yml`](.github/workflows/update-casks.yml) runs the stages in `scripts/update.sh` every six hours, or on dispatch for one cask. `scripts/discover.sh` lists the cask-enabled `pipelines/<app>/` directories.
+- [`update-casks.yml`](.github/workflows/update-casks.yml) runs the stages in `scripts/update.sh` every six hours, or on dispatch for one cask. `scripts/discover.sh` lists the cask-enabled `pipelines/<app>/` directories. Every stage runs one job per cask, with that cask's own timeout (`UPDATE_MINUTES` in its `config.env`, 20 by default), so adding a cask never touches the workflow.
 - `pipelines/<app>/resolve.sh` is the only app-specific code: it finds the newest upstream build and validates the tag and asset name strictly before anything else runs.
 - An update needs an upstream version newer than the cask's (`sort -V`). A macOS job downloads the DMG, hashes it and checks the bundle's identity and architectures. A second job, holding the release write access, repeats the lookup and download itself, requires the same checksum, and attaches the DMG to the rolling `<app>-latest` release. Published downloads are never replaced. A macOS job then fetches the hosted file through the rewritten cask, and only then does a last job push the new `version` and `sha256` lines straight to `main`, with a deploy key that may bypass the required checks.
-- A failing cask turns the run red without stopping the others. Retry with a new run: it redoes whatever is missing, and publishes nothing twice. Versions that `sort -V` can't order (a downgrade, two Paicord builds of one day, Flixor leaving its `beta` prefix) and a current version whose hosted DMG went missing need a human.
+- A failing cask turns the run red without stopping the others. Pushes run one cask at a time, each from a fresh clone of `main`. Retry with a new run: it redoes whatever is missing, and publishes nothing twice. Versions that `sort -V` can't order (a downgrade, two Paicord builds of one day, Flixor leaving its `beta` prefix) and a current version whose hosted DMG went missing need a human.
 - CI runs on every PR, each push to `main` and weekly. It runs the prek hooks (`bash -n`, shellcheck and both offline test trees), `scripts/check-casks.sh` on macOS (`brew readall`, `brew style`, `brew audit --cask`) and `scripts/check-formulae.sh` on Linux x86_64 and ARM64, which builds and tests the changed formulae (all of them weekly). Run the same commands locally: `prek run --all-files --hook-stage manual`, `bash scripts/check-casks.sh`, `bash scripts/check-formulae.sh`.
 
 Releases: <https://github.com/edbfi/homebrew-taps/releases>
@@ -131,7 +131,7 @@ Releases: <https://github.com/edbfi/homebrew-taps/releases>
 Three files:
 
 1. `Casks/<category>/<app>.rb` with `url` pointing at `releases/download/<app>-latest/<Prefix>-#{version}.dmg` and a donation `caveats` block.
-2. `pipelines/<app>/config.env` with the display name, upstream repo, asset prefix and donation links.
+2. `pipelines/<app>/config.env` with the display name, upstream repo, asset prefix and donation links. Optionally `UPDATE_MINUTES` (1–60, default 20), the timeout of each of the app's updater jobs.
 3. `pipelines/<app>/resolve.sh` that writes `version` and `download_url` (see the existing resolvers and the contract at the top of `scripts/resolve.sh`).
 
 Then register the app's bundle name, identifier and architectures in `scripts/inspect-macos.py` and add resolver fixtures to `scripts/tests/test_pipeline.py`. CI finds the new cask on its own.

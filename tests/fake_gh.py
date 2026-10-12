@@ -1,8 +1,9 @@
 """A fake `gh` for the updater tests: releases and run artifacts live under $FAKE_GH.
 
 Layout: releases/<tag>/<asset> (a missing tag directory is HTTP 404),
-artifacts/<name>/<files> and contents/<ref>/<path>. Every call is
-appended to calls.jsonl. FAKE_GH_API_STATUS makes the release API fail with that
+artifacts/<name>/<files>, contents/<ref>/<path> and jobs.json ({name: conclusion};
+only successes are listed, as the updater's --jq does). Every call is appended to
+calls.jsonl. FAKE_GH_API_STATUS makes the release and jobs APIs fail with that
 HTTP status.
 """
 import base64
@@ -49,6 +50,13 @@ elif args[:1] == ["api"] and "/contents/" in args[1]:
 elif args[:1] == ["api"] and "/artifacts" in args[-3 if "--jq" in args else -1]:
     for artifact in sorted((state / "artifacts").iterdir()) if (state / "artifacts").is_dir() else []:
         print(artifact.name)
+elif args[:1] == ["api"] and "/attempts/" in args[-3] and "/jobs" in args[-3]:
+    if os.environ.get("FAKE_GH_API_STATUS"):
+        fail(f"gh: Server Error (HTTP {os.environ['FAKE_GH_API_STATUS']})")
+    jobs = json.loads((state / "jobs.json").read_text()) if (state / "jobs.json").is_file() else {}
+    for name, conclusion in jobs.items():
+        if conclusion == "success":
+            print(name)
 elif args[:2] == ["release", "download"]:
     source = releases / args[2] / option("--pattern")
     if not source.is_file():
