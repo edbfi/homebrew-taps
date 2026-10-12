@@ -3,39 +3,30 @@
 # design/d8.md rules 8-13).
 #
 # A claim is a file holding exactly "version=…" and "sha256=…"; it crosses jobs as
-# the artifact claim-TOKEN-ATTEMPT, then checked-TOKEN-ATTEMPT. publish and push
-# handle each cask in its own process: a failing cask fails the stage at the end
-# and never stops the others. Both refuse re-runs, which would read an earlier
-# attempt's artifacts; a new run is the retry, and it re-derives everything.
+# the artifact claim-TOKEN-ATTEMPT, then checked-TOKEN-ATTEMPT. Every job runs one
+# cask, with that cask's own timeout (cask_matrix in lib/common.sh), so a failing
+# cask never stops the others. The privileged stages refuse re-runs, which would
+# read an earlier attempt's artifacts; a new run is the retry, and it re-derives
+# everything.
 #
 # Usage:
 #   scripts/update.sh check TOKEN OUTDIR    job 1 (macOS): resolve, download, inspect and
 #                                           validate; write OUTDIR/claim.env when TOKEN
 #                                           needs an update. Prints claim=true|false.
 #   scripts/update.sh plan CASKS_JSON       the tokens with a claim artifact in this
-#                                           attempt. Prints casks=<json> and matrix=<json>
-#                                           (cask_matrix in lib/common.sh).
-#   scripts/update.sh publish CASKS_JSON    job 2: re-derive each claim and publish the
-#                                           rolling release. Prints published=<json>.
-#   scripts/update.sh publish-one TOKEN OUTDIR
-#                                           job 2 for one cask; copy the claim to OUTDIR.
-#   scripts/update.sh published CASKS_JSON  like plan, for published-TOKEN-ATTEMPT.
+#                                           attempt. Prints casks=<json> and matrix=<json>.
+#   scripts/update.sh publish TOKEN         job 2: re-derive the claim and publish the
+#                                           rolling release.
+#   scripts/update.sh published CASKS_JSON  like plan, for the tokens whose job 2,
+#                                           "publish (TOKEN)", succeeded in this attempt.
 #   scripts/update.sh verify TOKEN OUTDIR   job 3 (macOS): fetch the published download
 #                                           through the rewritten cask; copy the claim
 #                                           to OUTDIR.
 #   scripts/update.sh verified CASKS_JSON   like plan, for checked-TOKEN-ATTEMPT.
-#   scripts/update.sh push CASKS_JSON       job 4: rewrite and push each verified cask
+#   scripts/update.sh push TOKEN            job 4: rewrite and push the verified cask
 #                                           from a fresh clone of $UPDATER_REMOTE's main.
-#   scripts/update.sh push-one TOKEN        job 4 for one cask.
 # shellcheck source=SCRIPTDIR/lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
-
-self="${REPO_ROOT}/scripts/update.sh"
-# Per-cask deadlines (seconds) for the Linux stages, so one stalled download can't
-# use up the job. All casks together must fit the publish and push jobs' timeouts;
-# tests/test_updater.py checks that as casks are added.
-PUBLISH_DEADLINE="${PUBLISH_DEADLINE:-540}"
-PUSH_DEADLINE="${PUSH_DEADLINE:-150}"
 
 # field KEY FILE — the value of the KEY=… line of a key=value FILE.
 field() { sed -n "s/^$1=//p" "$2" | head -n 1; }
@@ -114,17 +105,29 @@ stage_check() {
   echo "claim=true"
 }
 
-# stage_listed PREFIX CASKS_JSON — the tokens with a PREFIX-TOKEN-ATTEMPT artifact in
-# this attempt, as casks=<json> and matrix=<json>.
+# The names of this run's unexpired artifacts.
+artifact_names() {
+  gh api --paginate "repos/${GH_REPO:?GH_REPO is required}/actions/runs/${GITHUB_RUN_ID:?}/artifacts?per_page=100" \
+    --jq '.artifacts[] | select(.expired | not) | .name'
+}
+
+# The names of this attempt's jobs that succeeded.
+succeeded_jobs() {
+  gh api --paginate \
+    "repos/${GH_REPO:?GH_REPO is required}/actions/runs/${GITHUB_RUN_ID:?}/attempts/${GITHUB_RUN_ATTEMPT:?}/jobs?per_page=100" \
+    --jq '.jobs[] | select(.conclusion == "success") | .name'
+}
+
+# stage_listed CASKS_JSON PATTERN LISTER — the tokens for which PATTERN, with TOKEN
+# replaced by the token, is a line LISTER prints, as casks=<json> and matrix=<json>.
 stage_listed() {
-  local prefix="$1" names tokens token selected=()
-  tokens="$(tokens_from "$2")"
-  names="$(gh api --paginate "repos/${GH_REPO:?GH_REPO is required}/actions/runs/${GITHUB_RUN_ID:?}/artifacts?per_page=100" \
-    --jq '.artifacts[] | select(.expired | not) | .name')"
+  local pattern="$2" lister="$3" names tokens token selected=()
+  tokens="$(tokens_from "$1")"
+  names="$("${lister}")"
   while IFS= read -r token
   do
     [[ -n "${token}" ]] || continue
-    if grep -Fxq -- "${prefix}-${token}-${GITHUB_RUN_ATTEMPT:?}" <<<"${names}"
+    if grep -Fxq -- "${pattern//TOKEN/${token}}" <<<"${names}"
     then
       selected+=("${token}")
     fi
@@ -133,9 +136,9 @@ stage_listed() {
   echo "matrix=$(cask_matrix ${selected[@]+"${selected[@]}"})"
 }
 
-# publish_one TOKEN [OUTDIR] — with OUTDIR, copy the claim there once published.
-publish_one() {
-  local token="$1" out="${2:-}" claim work skip version needed newer sha
+stage_publish() {
+  local token="$1" claim work skip version needed newer sha
+  first_attempt
   load_pipeline "${token}"
   claim="$(intake_claim "claim-${token}-${GITHUB_RUN_ATTEMPT:?}")"
   read_claim "${claim}"
@@ -157,28 +160,6 @@ publish_one() {
     bash "${REPO_ROOT}/scripts/release-notes.sh" "${token}" >"${work}/notes.md"
   (cd "${work}" && bash "${REPO_ROOT}/scripts/publish-release.sh" "${token}" \
     "${work}/$(field asset "${work}/resolved.txt")" "${work}/notes.md") >&2
-  [[ -z "${out}" ]] || { mkdir -p "${out}" && cp "${claim}" "${out}/claim.env"; }
-}
-
-stage_publish() {
-  local tokens token failed=0 published=()
-  first_attempt
-  tokens="$(tokens_from "$1")"
-  echo "published=[]"
-  while IFS= read -r token
-  do
-    [[ -n "${token}" ]] || continue
-    if timeout --kill-after=10s "${PUBLISH_DEADLINE}" bash "${self}" _publish "${token}"
-    then
-      published+=("${token}")
-      # Output as we go: the last line wins, even if a later cask fails.
-      echo "published=$(json_array "${published[@]}")"
-    else
-      failed=$((failed + 1))
-      log "${token}: not published."
-    fi
-  done <<<"${tokens}"
-  [[ "${failed}" -eq 0 ]] || die "${failed} cask(s) failed to publish"
 }
 
 stage_verify() {
@@ -213,8 +194,9 @@ stage_verify() {
 # recipe_body FILE — a cask without its machine-owned version and sha256 lines.
 recipe_body() { grep -Ev '^  (version|sha256) "' "$1"; }
 
-push_one() {
+stage_push() {
   local token="$1" claim asset release found verified verified_body clone tries main_body current current_sha newer changed err
+  first_attempt
   load_pipeline "${token}"
   claim="$(intake_claim "checked-${token}-${GITHUB_RUN_ATTEMPT:?}")"
   read_claim "${claim}"
@@ -270,38 +252,13 @@ push_one() {
   die "${token}: main kept moving; giving up"
 }
 
-stage_push() {
-  local tokens token failed=0
-  first_attempt
-  tokens="$(tokens_from "$1")"
-  while IFS= read -r token
-  do
-    [[ -n "${token}" ]] || continue
-    timeout --kill-after=10s "${PUSH_DEADLINE}" bash "${self}" _push "${token}" || {
-      failed=$((failed + 1))
-      log "${token}: not pushed."
-    }
-  done <<<"${tokens}"
-  [[ "${failed}" -eq 0 ]] || die "${failed} cask(s) failed to push"
-}
-
 case "${1:-}" in
   check) stage_check "${2:?TOKEN}" "${3:?OUTDIR}" ;;
-  plan) stage_listed claim "${2:?CASKS_JSON}" ;;
-  publish) stage_publish "${2:?CASKS_JSON}" ;;
-  _publish) publish_one "${2:?TOKEN}" ;;
-  publish-one)
-    first_attempt
-    publish_one "${2:?TOKEN}" "${3:?OUTDIR}"
-    ;;
-  published) stage_listed published "${2:?CASKS_JSON}" ;;
+  plan) stage_listed "${2:?CASKS_JSON}" "claim-TOKEN-${GITHUB_RUN_ATTEMPT:?}" artifact_names ;;
+  publish) stage_publish "${2:?TOKEN}" ;;
+  published) stage_listed "${2:?CASKS_JSON}" "publish (TOKEN)" succeeded_jobs ;;
   verify) stage_verify "${2:?TOKEN}" "${3:?OUTDIR}" ;;
-  verified) stage_listed checked "${2:?CASKS_JSON}" ;;
-  push) stage_push "${2:?CASKS_JSON}" ;;
-  _push) push_one "${2:?TOKEN}" ;;
-  push-one)
-    first_attempt
-    push_one "${2:?TOKEN}"
-    ;;
-  *) die "usage: update.sh check|plan|publish|publish-one|published|verify|verified|push|push-one …" ;;
+  verified) stage_listed "${2:?CASKS_JSON}" "checked-TOKEN-${GITHUB_RUN_ATTEMPT:?}" artifact_names ;;
+  push) stage_push "${2:?TOKEN}" ;;
+  *) die "usage: update.sh check|plan|publish|published|verify|verified|push …" ;;
 esac

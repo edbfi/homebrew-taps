@@ -2,8 +2,9 @@
 # The cask updater (edbfi-ci design/d8.md rules 8-13). Every six hours each cask is
 # checked; an update is published to its rolling release, fetched back through the
 # rewritten cask, then pushed straight to main with the deploy key. Stages live in
-# scripts/update.sh. A failing cask turns the run red without stopping the others;
-# retry with a new run, never a re-run.
+# scripts/update.sh. Every stage runs one job per cask, with the cask's own timeout
+# (UPDATE_MINUTES in its config.env), so a failing cask turns the run red without
+# stopping the others; retry with a new run, never a re-run.
 name: Update casks
 on:
   schedule: [{ cron: "37 */6 * * *" }]
@@ -23,6 +24,7 @@ jobs:
     timeout-minutes: 5
     permissions: { contents: read }
     outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
       casks: ${{ steps.discover.outputs.casks }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,18 +34,20 @@ jobs:
           CASK_FILTER: ${{ inputs.cask }}
         run: |
           set -euo pipefail
-          casks="$(bash scripts/discover.sh "$CASK_FILTER" | jq -ce '.cask | select(length > 0)')"
-          echo "casks=$casks" >> "$GITHUB_OUTPUT"
+          found="$(bash scripts/discover.sh "$CASK_FILTER")"
+          echo "casks=$(jq -ce '.cask | select(length > 0)' <<<"$found")" >> "$GITHUB_OUTPUT"
+          echo "matrix=$(jq -ce '.matrix | select(length > 0)' <<<"$found")" >> "$GITHUB_OUTPUT"
 
   # Job 1: unprivileged. Its claim (version and sha256) is only a claim.
   check:
+    name: check (${{ matrix.cask }})
     needs: discover
     strategy:
       fail-fast: false
       matrix:
-        cask: ${{ fromJSON(needs.discover.outputs.casks) }}
+        include: ${{ fromJSON(needs.discover.outputs.matrix) }}
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.minutes }}
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -71,6 +75,7 @@ jobs:
     permissions: { contents: read, actions: read }
     outputs:
       casks: ${{ steps.plan.outputs.casks }}
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
@@ -81,15 +86,19 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: bash scripts/update.sh plan "$CASKS" >> "$GITHUB_OUTPUT"
 
-  # Job 2: privileged (shell only). Re-derives each claim from main's own scripts.
+  # Job 2: privileged (shell only). Re-derives the claim from main's own scripts.
+  # `published` finds these jobs by name: keep it "publish (TOKEN)".
   publish:
+    name: publish (${{ matrix.cask }})
     needs: plan
     if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.casks != '[]' && github.ref == 'refs/heads/main' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: ${{ matrix.minutes }}
     permissions: { contents: write, actions: read }
-    outputs:
-      published: ${{ steps.publish.outputs.published }}
     steps:
       - name: Fetch main
         env:
@@ -103,23 +112,43 @@ jobs:
           git -C "$RUNNER_TEMP/src" -c core.hooksPath=/dev/null -c http.extraheader="AUTHORIZATION: basic $auth" \
             fetch -q --depth 1 "https://github.com/$REPO.git" refs/heads/main
           git -C "$RUNNER_TEMP/src" -c core.hooksPath=/dev/null checkout -q FETCH_HEAD
-      - id: publish
+      - env:
+          CASK: ${{ matrix.cask }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash "$RUNNER_TEMP/src/scripts/update.sh" publish "$CASK"
+
+  # Lists the casks whose publish job succeeded.
+  published:
+    needs: [plan, publish]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.casks != '[]' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: { contents: read, actions: read }
+    outputs:
+      casks: ${{ steps.published.outputs.casks }}
+      matrix: ${{ steps.published.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - id: published
         env:
           CASKS: ${{ needs.plan.outputs.casks }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: bash "$RUNNER_TEMP/src/scripts/update.sh" publish "$CASKS" >> "$GITHUB_OUTPUT"
+        run: bash scripts/update.sh published "$CASKS" >> "$GITHUB_OUTPUT"
 
-  # Job 3: unprivileged. Fetches each published download through the rewritten cask.
+  # Job 3: unprivileged. Fetches the published download through the rewritten cask.
   verify:
-    needs: publish
-    if: ${{ !cancelled() && needs.publish.outputs.published != '' && needs.publish.outputs.published != '[]' }}
+    name: verify (${{ matrix.cask }})
+    needs: published
+    if: ${{ !cancelled() && needs.published.result == 'success' && needs.published.outputs.casks != '[]' }}
     strategy:
       fail-fast: false
       matrix:
-        cask: ${{ fromJSON(needs.publish.outputs.published) }}
+        include: ${{ fromJSON(needs.published.outputs.matrix) }}
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.minutes }}
     permissions: { contents: read, actions: read }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -136,18 +165,45 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # Job 4: privileged (shell only). Pushes each verified cask as a plain fast-forward.
-  push:
-    needs: [publish, verify]
-    if: ${{ !cancelled() && needs.publish.outputs.published != '' && needs.publish.outputs.published != '[]' && github.ref == 'refs/heads/main' }}
+  # Lists the verified casks.
+  verified:
+    needs: [published, verify]
+    if: ${{ !cancelled() && needs.published.result == 'success' && needs.published.outputs.casks != '[]' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
+    permissions: { contents: read, actions: read }
+    outputs:
+      casks: ${{ steps.verified.outputs.casks }}
+      matrix: ${{ steps.verified.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - id: verified
+        env:
+          CASKS: ${{ needs.published.outputs.casks }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/update.sh verified "$CASKS" >> "$GITHUB_OUTPUT"
+
+  # Job 4: privileged (shell only). Pushes each verified cask as a plain fast-forward,
+  # one at a time, so each starts from a main that holds the previous one's push.
+  push:
+    name: push (${{ matrix.cask }})
+    needs: verified
+    if: ${{ !cancelled() && needs.verified.result == 'success' && needs.verified.outputs.casks != '[]' && github.ref == 'refs/heads/main' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include: ${{ fromJSON(needs.verified.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.minutes }}
     permissions: { contents: read, actions: read }
     steps:
       - name: Push with the deploy key
         env:
           DEPLOY_KEY: ${{ secrets.UPDATER_DEPLOY_KEY }}
-          CASKS: ${{ needs.publish.outputs.published }}
+          CASK: ${{ matrix.cask }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           UPDATER_REMOTE: git@github.com:${{ github.repository }}.git
@@ -169,4 +225,4 @@ jobs:
           fi
           export GIT_SSH_COMMAND="ssh -F /dev/null -i $ssh_dir/key -o IdentitiesOnly=yes -o IdentityAgent=none -o UserKnownHostsFile=$ssh_dir/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes"
           git -c core.hooksPath=/dev/null clone -q --depth 1 --branch main "$UPDATER_REMOTE" "$RUNNER_TEMP/src"
-          bash "$RUNNER_TEMP/src/scripts/update.sh" push "$CASKS"
+          bash "$RUNNER_TEMP/src/scripts/update.sh" push "$CASK"

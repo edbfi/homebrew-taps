@@ -16,9 +16,6 @@ import json, os, pathlib, sys
 args = sys.argv[1:]
 routes = json.loads(pathlib.Path(os.environ["ROUTES"]).read_text())
 status, body = routes.get(args[-1], [404, {}])
-if body == "stall":
-    import time
-    time.sleep(60)
 data = body if isinstance(body, str) else json.dumps(body)
 pathlib.Path(args[args.index("-o") + 1]).write_text(data)
 if "-w" in args:
@@ -142,18 +139,19 @@ class HelperTests(UpdaterTestCase):
                 self.assertNotEqual(self.bash(f"intake_claim {name}").returncode, 0)
 
 
-class DeadlineTests(unittest.TestCase):
-    def test_per_cask_deadlines_fit_the_job_timeouts(self):
-        # Adding a cask must not let a job timeout cut off the last casks.
-        script = (ROOT / "scripts/update.sh").read_text()
+class WorkflowTests(unittest.TestCase):
+    def test_every_cask_job_runs_one_cask_on_its_own_timeout(self):
         workflow = (ROOT / ".github/workflows/update-casks.yml").read_text()
-        casks = json.loads(subprocess.run(["bash", str(ROOT / "scripts/discover.sh")], capture_output=True,
-                                          text=True, check=True).stdout)["cask"]
-        for stage, job in (("PUBLISH", "publish"), ("PUSH", "push")):
+        jobs = dict(re.findall(r"\n  ([a-z]+):\n((?:    .*\n|\n)*)", workflow))
+        for job in ("check", "publish", "verify", "push"):
             with self.subTest(job=job):
-                deadline = int(re.search(rf'{stage}_DEADLINE="\$\{{{stage}_DEADLINE:-(\d+)\}}"', script)[1])
-                minutes = int(re.search(rf"\n  {job}:\n(?:    .*\n)*?    timeout-minutes: (\d+)", workflow)[1])
-                self.assertLess(len(casks) * (deadline + 10), minutes * 60 - 120)
+                body = jobs[job]
+                # update.sh published finds the publish jobs by this name.
+                self.assertIn(f"    name: {job} (${{{{ matrix.cask }}}})\n", body)
+                self.assertIn("    timeout-minutes: ${{ matrix.minutes }}\n", body)
+                self.assertRegex(body, r"\n        include: \$\{\{ fromJSON\(needs\.[a-z]+\.outputs\.matrix\) \}\}\n")
+                self.assertIn("      fail-fast: false\n", body)
+        self.assertIn("      max-parallel: 1\n", jobs["push"])
 
 
 class ResolverRecordTests(UpdaterTestCase):
@@ -286,46 +284,34 @@ class StageTests(UpdaterTestCase):
             with self.subTest(casks=bad):
                 self.assertNotEqual(self.update("plan", bad).returncode, 0)
 
-    def test_published_and_verified_list_their_own_artifacts(self):
-        for name in ("claim-qview-1", "published-flixor-1", "published-paicord-2", "checked-fredtv-1"):
-            self.artifact(name, {"claim.env": "x"})
-        everything = '["qview", "flixor", "paicord", "fredtv"]'
-        for stage, token in (("published", "flixor"), ("verified", "fredtv")):
-            with self.subTest(stage=stage):
-                result = self.update(stage, everything)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(result.stdout.splitlines(),
-                                 [f'casks=["{token}"]', f'matrix=[{{"cask":"{token}","minutes":20}}]'])
-        self.assertEqual(self.update("published", '["qview"]').stdout.splitlines(), ["casks=[]", "matrix=[]"])
-
-    def test_publish_one_hands_on_the_claim(self):
-        self.qview_upstream("7.2", "qview 7.2")
-        body = claim("7.2", sha("qview 7.2"))
-        self.artifact("claim-qview-1", {"claim.env": body})
-        result = self.update("publish-one", "qview", self.tmp / "published")
+    def test_published_lists_the_succeeded_publish_jobs(self):
+        (self.state / "jobs.json").write_text(json.dumps({
+            "publish (qview)": "success", "publish (flixor)": "failure", "published": "success",
+            "verify (paicord)": "success", "publish (fredtv)": "cancelled"}))
+        result = self.update("published", '["qview", "flixor", "paicord", "fredtv"]')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.state / "releases/qview-latest/qView-7.2.dmg").read_text(), "qview 7.2")
-        self.assertEqual((self.tmp / "published/claim.env").read_text(), body)
-        rerun = self.update("publish-one", "qview", self.tmp / "again", GITHUB_RUN_ATTEMPT="2")
-        self.assertNotEqual(rerun.returncode, 0)
-        self.assertIn("start a new run", rerun.stderr)
-        self.assertFalse((self.tmp / "again").exists())
+        self.assertEqual(result.stdout.splitlines(), ['casks=["qview"]', 'matrix=[{"cask":"qview","minutes":20}]'])
+        self.assertEqual(self.update("published", '["flixor"]').stdout.splitlines(), ["casks=[]", "matrix=[]"])
+        failing = self.update("published", '["qview"]', FAKE_GH_API_STATUS="502")
+        self.assertNotEqual(failing.returncode, 0)
+        self.assertNotIn("casks=", failing.stdout)
 
-    def test_publish_one_hands_on_nothing_it_did_not_publish(self):
-        self.qview_upstream("7.2", "qview 7.2")
-        self.artifact("claim-qview-1", {"claim.env": claim("7.2", "b" * 64)})
-        result = self.update("publish-one", "qview", self.tmp / "published")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse((self.tmp / "published").exists())
-        self.assertFalse((self.state / "releases/qview-latest").exists())
+    def test_verified_lists_this_attempts_checked_artifacts(self):
+        for name in ("claim-qview-1", "checked-flixor-1", "checked-paicord-2"):
+            self.artifact(name, {"claim.env": "x"})
+        result = self.update("verified", '["qview", "flixor", "paicord"]')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ['casks=["flixor"]', 'matrix=[{"cask":"flixor","minutes":20}]'])
 
-    def test_publish_rederives_each_claim(self):
+    def test_publish_rederives_the_claim(self):
         self.qview_upstream("7.2", "qview 7.2")
         self.artifact("claim-qview-1", {"claim.env": claim("7.2", sha("qview 7.2"))})
-        result = self.update("publish", '["qview"]')
+        result = self.update("publish", "qview")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip().splitlines()[-1], 'published=["qview"]')
         self.assertEqual((self.state / "releases/qview-latest/qView-7.2.dmg").read_text(), "qview 7.2")
+        unknown = self.update("publish", "../qview")
+        self.assertNotEqual(unknown.returncode, 0)
+        self.assertIn("Invalid cask token", unknown.stderr)
 
     def test_publish_rejects_a_claim_upstream_doesnt_back(self):
         self.qview_upstream("7.2", "qview 7.2")
@@ -333,24 +319,13 @@ class StageTests(UpdaterTestCase):
             with self.subTest(name):
                 shutil.rmtree(self.state / "artifacts")
                 self.artifact("claim-qview-1", {"claim.env": body})
-                result = self.update("publish", '["qview"]')
+                result = self.update("publish", "qview")
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn('published=[]', result.stdout)
                 self.assertFalse((self.state / "releases/qview-latest").exists())
-        rerun = self.update("publish", '["qview"]', GITHUB_RUN_ATTEMPT="2")
+        rerun = self.update("publish", "qview", GITHUB_RUN_ATTEMPT="2")
         self.assertNotEqual(rerun.returncode, 0)
         self.assertIn("start a new run", rerun.stderr)
 
-
-    def test_a_stalled_cask_times_out_and_the_rest_publish(self):
-        self.routes["https://api.github.com/repos/Flixorui/flixor/releases/latest"] = [200, "stall"]
-        self.artifact("claim-flixor-1", {"claim.env": claim("beta2.5.0", "c" * 64)})
-        self.qview_upstream("7.2", "qview 7.2")
-        self.artifact("claim-qview-1", {"claim.env": claim("7.2", sha("qview 7.2"))})
-        result = self.update("publish", '["flixor", "qview"]', PUBLISH_DEADLINE="3")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("flixor: not published", result.stderr)
-        self.assertEqual(result.stdout.strip().splitlines()[-1], 'published=["qview"]')
 
 
 class PushStageTests(UpdaterTestCase):
@@ -385,7 +360,7 @@ class PushStageTests(UpdaterTestCase):
     def test_pushes_only_version_and_sha256(self):
         before = self.origin_file("Casks/media/qview.rb")
         self.checked("qview", "qView", "7.2", "qview 7.2")
-        result = self.run_script(ROOT / "scripts/update.sh", "push", '["qview"]')
+        result = self.run_script(ROOT / "scripts/update.sh", "push", "qview")
         self.assertEqual(result.returncode, 0, result.stderr)
         after = self.origin_file("Casks/media/qview.rb")
         expected = before.replace('version "7.1"', 'version "7.2"')
@@ -393,51 +368,36 @@ class PushStageTests(UpdaterTestCase):
         self.assertEqual(after, expected)
         self.assertIn("chore(qview): update to 7.2", self.commits())
         self.assertIn("Signed-off-by: github-actions[bot]", self.commits())
-        again = self.run_script(ROOT / "scripts/update.sh", "push", '["qview"]')
+        again = self.run_script(ROOT / "scripts/update.sh", "push", "qview")
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertIn("main already has 7.2", again.stderr)
         self.assertEqual(self.commits().count("chore(qview)"), 1)
 
-    def test_push_one_pushes_one_cask(self):
-        self.checked("qview", "qView", "7.2", "qview 7.2")
-        result = self.run_script(ROOT / "scripts/update.sh", "push-one", "qview")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn(f'sha256 "{sha("qview 7.2")}"', self.origin_file("Casks/media/qview.rb"))
-        self.assertEqual(self.commits().count("chore(qview): update to 7.2"), 1)
-        rerun = self.run_script(ROOT / "scripts/update.sh", "push-one", "qview", env={"GITHUB_RUN_ATTEMPT": "2"})
-        self.assertNotEqual(rerun.returncode, 0)
-        self.assertIn("start a new run", rerun.stderr)
-        unknown = self.run_script(ROOT / "scripts/update.sh", "push-one", "../qview")
-        self.assertNotEqual(unknown.returncode, 0)
-        self.assertIn("Invalid cask token", unknown.stderr)
-
-    def test_one_failing_cask_does_not_stop_the_others(self):
-        self.checked("flixor", "Flixor", "beta2.5.0", "flixor")
-        result = self.run_script(ROOT / "scripts/update.sh", "push", '["qview", "flixor"]')
+    def test_push_refuses_unknown_tokens(self):
+        result = self.run_script(ROOT / "scripts/update.sh", "push", "../qview")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("qview: not pushed", result.stderr)
-        self.assertIn('version "beta2.5.0"', self.origin_file("Casks/media/flixor.rb"))
+        self.assertIn("Invalid cask token", result.stderr)
 
     def test_refuses_unbacked_or_older_claims(self):
         self.release("qview-latest", **{"qView-7.2.dmg": "hosted"})
         self.artifact("checked-qview-1", {"claim.env": claim("7.2", sha("other"))})
-        mismatch = self.run_script(ROOT / "scripts/update.sh", "push", '["qview"]')
+        mismatch = self.run_script(ROOT / "scripts/update.sh", "push", "qview")
         self.assertNotEqual(mismatch.returncode, 0)
         self.assertIn("doesn't serve qView-7.2.dmg with the claimed sha256", mismatch.stderr)
         shutil.rmtree(self.state / "artifacts")
         self.checked("qview", "qView", "7.0", "qview 7.0")
-        older = self.run_script(ROOT / "scripts/update.sh", "push", '["qview"]')
+        older = self.run_script(ROOT / "scripts/update.sh", "push", "qview")
         self.assertNotEqual(older.returncode, 0)
         self.assertIn("is not newer", older.stderr)
         self.assertNotIn("chore(", self.commits())
-        rerun = self.run_script(ROOT / "scripts/update.sh", "push", '["qview"]', env={"GITHUB_RUN_ATTEMPT": "3"})
+        rerun = self.run_script(ROOT / "scripts/update.sh", "push", "qview", env={"GITHUB_RUN_ATTEMPT": "3"})
         self.assertIn("start a new run", rerun.stderr)
 
     def test_refuses_a_recipe_changed_since_verification(self):
         verified = self.state / "contents/verified/Casks/media/qview.rb"
         verified.write_text(verified.read_text().replace("qview-latest", "qview-old"))
         self.checked("qview", "qView", "7.2", "qview 7.2")
-        result = self.run_script(ROOT / "scripts/update.sh", "push", '["qview"]')
+        result = self.run_script(ROOT / "scripts/update.sh", "push", "qview")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("changed on main since it was verified", result.stderr)
         self.assertNotIn("chore(", self.commits())
@@ -447,7 +407,7 @@ class PushStageTests(UpdaterTestCase):
         hook.write_text(f'#!/bin/sh\necho x >> "{self.tmp}/hook-calls"\necho "ruleset says no" >&2\nexit 1\n')
         hook.chmod(0o755)
         self.checked("qview", "qView", "7.2", "qview 7.2")
-        result = self.run_script(ROOT / "scripts/update.sh", "push", '["qview"]')
+        result = self.run_script(ROOT / "scripts/update.sh", "push", "qview")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("the push failed", result.stderr)
         self.assertEqual((self.tmp / "hook-calls").read_text().count("x"), 1)
