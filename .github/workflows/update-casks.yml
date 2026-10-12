@@ -86,7 +86,7 @@ jobs:
     needs: plan
     if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.casks != '[]' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 70
     permissions: { contents: write, actions: read }
     outputs:
       published: ${{ steps.publish.outputs.published }}
@@ -141,7 +141,7 @@ jobs:
     needs: [publish, verify]
     if: ${{ !cancelled() && needs.publish.outputs.published != '' && needs.publish.outputs.published != '[]' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     permissions: { contents: read, actions: read }
     steps:
       - name: Push with the deploy key
