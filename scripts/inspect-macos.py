@@ -16,6 +16,8 @@ APPS = {
     "paicord": ("Paicord.app", "com.llsc12.Paicord", {"arm64", "x86_64"}),
     "qbittorrent": ("qbittorrent.app", "org.qbittorrent.qBittorrent", {"arm64", "x86_64"}),
     "qview": ("qView.app", "com.interversehq.qView", {"arm64", "x86_64"}),
+    "updater-probe": ("Updater Probe.app", "io.github.edbfi.updater-probe", {"arm64", "x86_64"}),
+    "updater-probe-b": ("Updater Probe B.app", "io.github.edbfi.updater-probe-b", {"arm64", "x86_64"}),
 }
 
 

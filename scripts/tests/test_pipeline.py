@@ -286,7 +286,8 @@ print(status, end="")
         casks = subprocess.check_output(["bash", str(ROOT / "scripts/discover.sh")], text=True)
         formulae = subprocess.check_output(["bash", str(ROOT / "scripts/discover.sh"), "", "formula"], text=True)
         self.assertEqual(set(json.loads(casks)["cask"]),
-                         {"fcast-sender", "flixor", "fredtv", "paicord", "qbittorrent", "qview"})
+                         {"fcast-sender", "flixor", "fredtv", "paicord", "qbittorrent", "qview",
+                          "updater-probe", "updater-probe-b"})
         self.assertEqual(set(module("inspect-macos").APPS), set(json.loads(casks)["cask"]))
         self.assertEqual(set(json.loads(formulae)["formula"]), {"qview", "fredtv", "fcast-sender", "pipewire-gstreamer"})
 
