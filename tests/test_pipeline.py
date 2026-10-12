@@ -49,7 +49,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(sorted(tokens), expected)
         self.assertEqual(len(tokens), len(set(tokens)))
         one = subprocess.run(["bash", "scripts/discover.sh", tokens[0]], cwd=ROOT, capture_output=True, text=True, check=True)
-        self.assertEqual(json.loads(one.stdout), {"cask": [tokens[0]]})
+        self.assertEqual(json.loads(one.stdout), {"cask": [tokens[0]], "matrix": [{"cask": tokens[0], "minutes": 20}]})
         unknown = subprocess.run(["bash", "scripts/discover.sh", "missing-fixture"], cwd=ROOT, capture_output=True, text=True)
         self.assertNotEqual(unknown.returncode, 0)
 

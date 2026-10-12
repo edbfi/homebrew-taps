@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# List the pipeline packages of one kind as JSON: {"cask":["a","b"]} or
-# {"formula":[...]}. Every pipelines/<token>/ directory whose PACKAGE_KINDS
+# List the pipeline packages of one kind as JSON: {"cask":["a","b"],"matrix":[...]}
+# or {"formula":[...]}. Every pipelines/<token>/ directory whose PACKAGE_KINDS
 # includes the kind (default cask) is one entry. Pass a token to select only it.
+# matrix is the cask updater's job matrix (cask_matrix in lib/common.sh).
 #
 # Usage: scripts/discover.sh [TOKEN] [cask|formula]
 # shellcheck source=SCRIPTDIR/lib/common.sh
@@ -27,4 +28,11 @@ do
 done
 
 [[ "${#casks[@]}" -gt 0 ]] || die "No pipeline matches '${filter}'"
-printf '%s\n' "${casks[@]}" | jq -R . | jq -cs --arg kind "${kind}" '{($kind): .}'
+if [[ "${kind}" = cask ]]
+then
+  matrix="$(cask_matrix "${casks[@]}")"
+else
+  matrix=null
+fi
+printf '%s\n' "${casks[@]}" | jq -R . |
+  jq -cs --arg kind "${kind}" --argjson matrix "${matrix}" '{($kind): .} + if $matrix then {matrix: $matrix} else {} end'

@@ -306,6 +306,37 @@ print(status, end="")
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(message, result.stderr)
 
+    def test_discovery_carries_each_casks_update_minutes(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            work = Path(scratch)
+            (work / "scripts/lib").mkdir(parents=True)
+            shutil.copy2(ROOT / "scripts/lib/common.sh", work / "scripts/lib/common.sh")
+            shutil.copy2(ROOT / "scripts/discover.sh", work / "scripts/discover.sh")
+            (work / "Casks/test").mkdir(parents=True)
+            config = 'DISPLAY_NAME=Fake\nUPSTREAM_URL=https://example.org\nASSET_PREFIX=Fake\n'
+            for token in ("plain", "slow"):
+                (work / "pipelines" / token).mkdir(parents=True)
+                (work / "pipelines" / token / "resolve.sh").write_text("")
+                (work / "pipelines" / token / "config.env").write_text(config)
+                (work / "Casks/test" / f"{token}.rb").write_text("")
+
+            def discover():
+                return subprocess.run(["bash", str(work / "scripts/discover.sh")], text=True, capture_output=True)
+
+            for minutes in ("45", "60", "1"):
+                with self.subTest(minutes=minutes):
+                    (work / "pipelines/slow/config.env").write_text(f"{config}UPDATE_MINUTES={minutes}\n")
+                    result = discover()
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(result.stdout)["matrix"],
+                                     [{"cask": "plain", "minutes": 20}, {"cask": "slow", "minutes": int(minutes)}])
+            for minutes in ("0", "61", "100", "1.5", "07", "", "x"):
+                with self.subTest(minutes=minutes):
+                    (work / "pipelines/slow/config.env").write_text(f"{config}UPDATE_MINUTES={minutes}\n")
+                    result = discover()
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("UPDATE_MINUTES must be a whole number from 1 to 60", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
