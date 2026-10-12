@@ -290,12 +290,18 @@ case "${1:-}" in
   plan) stage_listed claim "${2:?CASKS_JSON}" ;;
   publish) stage_publish "${2:?CASKS_JSON}" ;;
   _publish) publish_one "${2:?TOKEN}" ;;
-  publish-one) first_attempt; publish_one "${2:?TOKEN}" "${3:?OUTDIR}" ;;
+  publish-one)
+    first_attempt
+    publish_one "${2:?TOKEN}" "${3:?OUTDIR}"
+    ;;
   published) stage_listed published "${2:?CASKS_JSON}" ;;
   verify) stage_verify "${2:?TOKEN}" "${3:?OUTDIR}" ;;
   verified) stage_listed checked "${2:?CASKS_JSON}" ;;
   push) stage_push "${2:?CASKS_JSON}" ;;
   _push) push_one "${2:?TOKEN}" ;;
-  push-one) first_attempt; push_one "${2:?TOKEN}" ;;
+  push-one)
+    first_attempt
+    push_one "${2:?TOKEN}"
+    ;;
   *) die "usage: update.sh check|plan|publish|publish-one|published|verify|verified|push|push-one …" ;;
 esac
