@@ -9,5 +9,7 @@ cask "updater-probe" do
   desc "Test app that drives one updater push; not for installation"
   homepage "https://github.com/edbfi/edbfi-ci-playground"
 
+  depends_on macos: :monterey
+
   app "Updater Probe.app"
 end
