@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# The cask updater (edbfi-ci design/d8.md rules 8-13). Every six hours each cask is
+# The cask updater. Every six hours each cask is
 # checked; an update is published to its rolling release, fetched back through the
 # rewritten cask, then pushed straight to main with the deploy key. Stages live in
 # scripts/update.sh. Every stage runs one job per cask, with the cask's own timeout

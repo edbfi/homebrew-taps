@@ -2,8 +2,8 @@
 # Decide whether TOKEN needs an update. Prints key=value lines for GITHUB_OUTPUT:
 #   previous_version, needed, reason
 #
-# An update is needed only when upstream is newer than the cask (sort -V; edbfi-ci
-# design/d8.md rule 10). Failures, for a human to look at:
+# An update is needed only when upstream is newer than the cask (sort -V).
+# Failures, for a human to look at:
 #   - upstream differs from the cask but isn't newer (a downgrade, or an
 #     unorderable version such as a same-day Paicord build);
 #   - the cask is current but its rolling release or asset is missing: restore the

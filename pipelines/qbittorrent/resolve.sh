@@ -6,8 +6,8 @@ source "$(dirname "$0")/../../scripts/lib/common.sh"
 load_pipeline "$(basename "$(cd "$(dirname "$0")" && pwd)")"
 : "${RESOLVE_OUT:?RESOLVE_OUT (output file) is required}"
 
-# Unlike the other resolvers, a missing latest release is a lookup error here
-# (edbfi-ci design/d8.md rule 9): qBittorrent always has one.
+# Unlike the other resolvers, a missing latest release is a lookup error here:
+# qBittorrent always has one.
 status="$(gh_api "repos/${UPSTREAM_REPO}/releases/latest" release.json)"
 require_2xx "${status}" "fetching latest ${UPSTREAM_REPO} release" release.json
 
