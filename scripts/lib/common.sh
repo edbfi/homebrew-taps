@@ -133,7 +133,7 @@ read_claim() {
 }
 
 # intake_claim ARTIFACT — download this run's ARTIFACT into a fresh directory and
-# print the path of its only file, claim.env (edbfi-ci security.md rule 5).
+# print the path of its only file, claim.env (edbfi-ci's privileged_jobs.py).
 intake_claim() {
   local name="$1" dir
   dir="$(mktemp -d)"

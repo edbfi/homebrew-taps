@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# The cask updater's stages, run by .github/workflows/update-casks.yml (edbfi-ci
-# design/d8.md rules 8-13).
+# The cask updater's stages, run by .github/workflows/update-casks.yml.
 #
 # A claim is a file holding exactly "version=…" and "sha256=…"; it crosses jobs as
 # the artifact claim-TOKEN-ATTEMPT, then checked-TOKEN-ATTEMPT. Every job runs one
