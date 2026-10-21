@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build and test the tap's changed Linux formulae natively on this host (CI runs
-# it on x86_64 and ARM64). Formulae it builds stay installed.
+# it on x86_64 and ARM64). It updates Homebrew first; formulae it builds stay installed.
 #
 # Selection: formulae whose Formula/<token>.rb differs from BASE_SHA. In GitHub
 # Actions, BASE_SHA defaults to the PR base (pull_request) or the previous tip
@@ -148,6 +148,9 @@ command -v brew >/dev/null || {
   echo "ERROR: Homebrew is required" >&2
   exit 1
 }
+# The formula API changes with brew itself (Homebrew/brew#24302): the runner image's brew
+# can lag it and fail to read it, so update once before building.
+brew update --quiet
 export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ENV_HINTS=1
 # shellcheck source=SCRIPTDIR/lib/tap.sh
 source scripts/lib/tap.sh
