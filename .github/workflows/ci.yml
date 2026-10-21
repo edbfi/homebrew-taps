@@ -31,7 +31,7 @@ jobs:
         with: { persist-credentials: false }
       - run: bash scripts/check-casks.sh
   formulae:
-    # Linux ARM64 has no -latest label: use ubuntu-latest's generation (ci.md rule 10).
+    # No -latest ARM64 label exists: keep the arm label on ubuntu-latest's generation.
     strategy: { fail-fast: false, matrix: { runner: [ubuntu-latest, ubuntu-24.04-arm] } }
     runs-on: ${{ matrix.runner }}
     # PRs build changed formulae only; the weekly run builds all four (35-40 min on x86_64 in the retired CI).
