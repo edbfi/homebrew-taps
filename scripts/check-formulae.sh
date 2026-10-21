@@ -148,6 +148,9 @@ command -v brew >/dev/null || {
   echo "ERROR: Homebrew is required" >&2
   exit 1
 }
+# The formula API changes with brew itself (Homebrew/brew#24302): the runner image's brew
+# can lag it and fail to read it, so update once before building.
+brew update --quiet
 export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ENV_HINTS=1
 # shellcheck source=SCRIPTDIR/lib/tap.sh
 source scripts/lib/tap.sh
