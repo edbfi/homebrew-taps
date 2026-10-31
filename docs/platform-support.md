@@ -19,7 +19,7 @@ compatibility. Linux formulae deliberately reject macOS; use the existing casks.
 | --- | --- | --- | --- |
 | FCast Sender 0.0.3 beta | Support existing ARM64 cask; retain Intel restriction | Support with native formula, GStreamer plugin and desktop session requirements | The [desktop sender](https://github.com/futo-org/fcast/tree/sender-0.0.3-beta/senders/desktop) is Rust/Slint, not the Electron receiver or terminal sender. [Upstream's Flatpak recipe](https://github.com/flathub/org.fcast.Sender/blob/master/org.fcast.Sender.yaml) documents Linux dependencies. Screen/audio capture needs real-session validation. |
 | Flixor beta2.4.0 | Retain universal cask, macOS 13+ | Retain restriction | [Flixor source](https://github.com/Flixorui/flixor) contains multiple variants. `FlixorMac.app` / `com.flixor.mac` uses SwiftUI, AppKit and native media frameworks. Shipping its web variant would change the packaged application. Porting the native variant requires substantial upstream work. |
-| Fred TV 1.9.1 | Support universal cask; install missing external media tools | Support source-only formula with Node 20, Rust/Tauri, GTK3/WebKitGTK 4.1 and media tools | [Pinned source/build configuration](https://github.com/Fredolx/open-tv/tree/v1.9.1) supports Linux. Binary redistribution needs GPL-2.0/OpenSSL 3 clarification; the formula builds locally. It embeds the Angular frontend and wraps `mpv`, `ffmpeg`, `yt-dlp` paths. Node 20 matches Angular 17; an upstream frontend toolchain upgrade is needed before removing that build dependency. |
+| Fred TV 1.9.1 | Support universal cask; install missing external media tools | Support source-only formula with Node 24 (validated; outside Angular 17's supported range), Rust/Tauri, GTK3/WebKitGTK 4.1 and media tools | [Pinned source/build configuration](https://github.com/Fredolx/open-tv/tree/v1.9.1) supports Linux. Binary redistribution needs GPL-2.0/OpenSSL 3 clarification; the formula builds locally. It embeds the Angular frontend and wraps `mpv`, `ffmpeg`, `yt-dlp` paths. Angular 17 supports only Node 18/20; an upstream frontend toolchain upgrade is needed to return to a supported Node major. |
 | Paicord 2026-08-05-473c780 | Support universal cask, macOS 14+ | Retain restriction | [Source](https://github.com/llsc12/Paicord) and build workflow package a SwiftUI macOS app; Linux support is unfinished upstream. The resolver now binds a successful build run to its immutable release tag, exact asset and source commit. |
 | qView 7.1 | Support universal cask, macOS 12+ | Support native Qt 6 formula | [Release source](https://github.com/jurplel/qView/tree/7.1) uses qmake (current development uses a different build system). Reuse core Qt base, SVG, image-format and Wayland packages. Validate real image decoding, not just `--version`. |
 | qBittorrent 5.2.3 | Universal desktop cask, macOS 13+ | Not packaged by this tap | The standard [upstream DMG](https://github.com/qbittorrent/qBittorrent/releases/tag/release-5.2.3) contains `qbittorrent.app` / `org.qbittorrent.qBittorrent`. Read-only inspection verified ARM64 and x86_64 in every Mach-O file and `LSMinimumSystemVersion=13.0`. Intel launch and torrent transfers remain untested. |
@@ -174,11 +174,12 @@ bytes and completeness independently of whether a scan key is configured.
 
 ## Follow-up platform work
 
-1. Fred TV's Angular 17 toolchain requires follow-up before Homebrew disables
-   [node@20](https://formulae.brew.sh/formula/node@20) on 28 October 2026. Node 20 is
-   already deprecated. Upgrade and validate the frontend toolchain upstream (or
-   carry a narrowly reviewed compatibility patch) before that deadline; the tap
-   must not silently rely on an unsupported replacement Node major.
+1. Homebrew disabled `node@20` on 28 October 2026, so Fred TV's Angular 17
+   frontend now builds with [node@24](https://formulae.brew.sh/formula/node@24),
+   an explicit, validated choice outside Angular 17's supported Node 18/20 range.
+   Homebrew disables `node@24` on 30 October 2028. The real fix is still an
+   upstream frontend toolchain upgrade (or a narrowly reviewed compatibility
+   patch); revalidate any Node major change explicitly, never swap it silently.
 2. Complete the manual media/audio/portal matrix on ordinary Linux desktops before
    claiming full feature parity. Keep Xvfb and Weston: each exercises a different
    backend, and neither requires a connected monitor.
