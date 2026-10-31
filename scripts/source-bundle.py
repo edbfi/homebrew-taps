@@ -52,7 +52,7 @@ def bundle(token, destination):
                             "--manifest-path", str(manifest)], cwd=source, env=env,
                            check=True, stdout=subprocess.DEVNULL)
         if token == "fredtv":
-            node = subprocess.check_output(["brew", "--prefix", "node@20"], text=True).strip()
+            node = subprocess.check_output(["brew", "--prefix", "node@24"], text=True).strip()
             env["PATH"] = f"{node}/bin:{env['PATH']}"
             subprocess.run(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
                            cwd=source, env=env, check=True)

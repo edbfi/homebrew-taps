@@ -6,7 +6,8 @@ class Fredtv < Formula
   sha256 "acb256f2b42720b94b04d61280eee05a1fca7d866cb347e73c3bb2310664e90b"
   license "GPL-2.0-only"
 
-  depends_on "node@20" => :build # Angular 17's supported upstream build toolchain.
+  # Angular 17 supports Node 18/20 only; validated on Node 24 (node@20 disabled 2026-10-28).
+  depends_on "node@24" => :build
   depends_on "pkgconf" => :build
   depends_on "rust" => :build
   depends_on "cairo"
