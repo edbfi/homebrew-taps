@@ -1,13 +1,14 @@
-<div align="center">
-
-# edbfi/taps
-
-**One Homebrew tap for macOS apps that homebrew-cask does not carry.**
-
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![Monero: Donate XMR](https://img.shields.io/badge/Monero-Donate%20XMR-F26822?logo=monero&logoColor=white)](#-support-the-developers)
-
-</div>
+<p align="center">
+  <img src="docs/assets/homebrew-taps-logo.svg" alt="homebrew-taps logo" width="256" height="256">
+</p>
+<h1 align="center">homebrew-taps</h1>
+<p align="center"><strong>A Homebrew tap for macOS apps and Linux formulae maintained automatically.</strong></p>
+<p align="center">
+  <a href="https://github.com/edbfi/homebrew-taps/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat" alt="License: AGPL-3.0 (tap)"></a>
+  <a href="https://github.com/Homebrew/brew" title="Homebrew package manager source"><img src="https://img.shields.io/badge/Homebrew-FBB040?style=flat&amp;logo=homebrew&amp;logoColor=black" alt="Homebrew"></a>
+  <a href="https://github.com/ruby/ruby"><img src="https://img.shields.io/badge/Ruby-CC342D?style=flat&amp;logo=ruby&amp;logoColor=white" alt="Ruby"></a>
+  <a href="https://git.savannah.gnu.org/cgit/bash.git/"><img src="https://img.shields.io/badge/Bash-4EAA25?style=flat&amp;logo=gnubash&amp;logoColor=white" alt="Bash"></a>
+</p>
 
 Every cask here re-hosts an upstream build on this repository's releases and is updated by a shared pipeline every six hours. Apps that Gatekeeper would block are de-quarantined on install, so they open like anything else.
 

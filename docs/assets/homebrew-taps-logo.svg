@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">homebrew-taps</title>
+  <desc id="desc">An original package box with a tap delivering a blue drop.</desc>
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="#f8f1e5"/>
+  <g stroke="#263c45" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m46 126 66-32 66 32-66 34Z" fill="#f2c078"/>
+    <path d="M46 126v64l66 34v-64Z" fill="#d7974d"/>
+    <path d="M112 160v64l66-34v-64Z" fill="#eab063"/>
+    <path d="m79 110 66 34v22" fill="none"/>
+    <path d="M154 73h22v31h28V87c0-20-13-36-33-36h-17Z" fill="#5dabb6"/>
+    <path d="M154 43v37M141 43h26" fill="none"/>
+    <path d="M190 117c-5 8-13 17-13 24a13 13 0 0 0 26 0c0-7-8-16-13-24Z" fill="#359fbd"/>
+  </g>
+</svg>
