@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="docs/assets/homebrew-taps-logo.svg" alt="homebrew-taps logo" width="256" height="256">
+  <img src="docs/assets/homebrew-taps-logo.svg" alt="homebrew-taps logo" width="160" height="160">
 </p>
 <h1 align="center">homebrew-taps</h1>
 <p align="center"><strong>A Homebrew tap for macOS apps and Linux formulae maintained automatically.</strong></p>
 <p align="center">
-  <a href="https://github.com/edbfi/homebrew-taps/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat" alt="License: AGPL-3.0 (tap)"></a>
+  <a href="https://github.com/edbfi/homebrew-taps/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat" alt="License: AGPL-3.0-or-later (tap)"></a>
   <a href="https://github.com/Homebrew/brew" title="Homebrew package manager source"><img src="https://img.shields.io/badge/Homebrew-FBB040?style=flat&amp;logo=homebrew&amp;logoColor=black" alt="Homebrew"></a>
   <a href="https://github.com/ruby/ruby"><img src="https://img.shields.io/badge/Ruby-CC342D?style=flat&amp;logo=ruby&amp;logoColor=white" alt="Ruby"></a>
   <a href="https://git.savannah.gnu.org/cgit/bash.git/"><img src="https://img.shields.io/badge/Bash-4EAA25?style=flat&amp;logo=gnubash&amp;logoColor=white" alt="Bash"></a>
@@ -141,7 +141,7 @@ Then register the app's bundle name, identifier and architectures in `scripts/in
 
 ## License and attribution
 
-This is an unofficial, community-maintained tap, not affiliated with any of the upstream developers. The tap itself is licensed under [AGPL-3.0](LICENSE). The apps keep their own licenses:
+This is an unofficial, community-maintained tap, not affiliated with any of the upstream developers. The tap's original code and configuration are licensed under the [GNU Affero General Public License](LICENSE), version 3 or (at your option) any later version (`AGPL-3.0-or-later`). Existing third-party notices and grants still apply. The packaged apps and their dependencies keep their own licenses:
 
 | App | Upstream license |
 | --- | --- |

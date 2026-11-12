@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # The cask updater. Every six hours each cask is
 # checked; an update is published to its rolling release, fetched back through the
 # rewritten cask, then pushed straight to main with the deploy key. Stages live in
