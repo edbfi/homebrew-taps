@@ -8,6 +8,7 @@
   <a href="https://github.com/Homebrew/brew" title="Homebrew package manager source"><img src="https://img.shields.io/badge/Homebrew-FBB040?style=flat&amp;logo=homebrew&amp;logoColor=black" alt="Homebrew"></a>
   <a href="https://github.com/ruby/ruby"><img src="https://img.shields.io/badge/Ruby-CC342D?style=flat&amp;logo=ruby&amp;logoColor=white" alt="Ruby"></a>
   <a href="https://git.savannah.gnu.org/cgit/bash.git/"><img src="https://img.shields.io/badge/Bash-4EAA25?style=flat&amp;logo=gnubash&amp;logoColor=white" alt="Bash"></a>
+  <a href="https://github.com/edbfi/homebrew-taps/actions/workflows/ci.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/edbfi/homebrew-taps/ci.yml?branch=main&amp;event=push&amp;label=CI&amp;style=flat" alt="CI"></a>
 </p>
 
 Every cask here re-hosts an upstream build on this repository's releases and is updated by a shared pipeline every six hours. Apps that Gatekeeper would block are de-quarantined on install, so they open like anything else.
