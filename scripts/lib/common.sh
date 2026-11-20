@@ -63,9 +63,8 @@ require_safe_version() {
 
 # version_newer NEW OLD — print true when NEW sorts strictly after OLD (LC_ALL=C sort -V),
 # else false. (Predicates print, so callers never test a function's status.)
-# sort -V is not upstream chronology, so these need a human: two date-hash builds of
-# one day (Paicord's YYYY-MM-DD-<sha>, which would order by hash), and Flixor's
-# beta2.4.0, which sorts after 1.0.0.
+# Two Paicord builds from the same day need manual review because sort -V
+# orders their YYYY-MM-DD-<sha> versions by commit hash.
 version_newer() {
   local day='^([0-9]{4}-[0-9]{2}-[0-9]{2})-[0-9a-f]+$' new_day newest
   if [[ "$1" == "$2" ]]
