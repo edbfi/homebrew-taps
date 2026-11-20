@@ -38,8 +38,8 @@ def inspect(token, dmg):
             for path in app.rglob("*"):
                 if not path.is_file() or path.is_symlink():
                     continue
-                kind = subprocess.check_output(["file", "-b", str(path)], text=True)
-                if "Mach-O" not in kind:
+                kind = subprocess.check_output(["file", "-b", str(path)])
+                if b"Mach-O" not in kind:
                     continue
                 arches = set(subprocess.check_output(["lipo", "-archs", str(path)], text=True).split())
                 binaries[str(path.relative_to(app))] = sorted(arches)
