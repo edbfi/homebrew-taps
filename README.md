@@ -39,7 +39,7 @@ This tap only re-packages other people's work. If an app earns a place in your D
 | App | macOS cask | Linux formula |
 | --- | --- | --- |
 | [FCast Sender](https://fcast.org/) | Apple Silicon, macOS 11+ | ARM64 / x86_64 |
-| [Flixor](https://github.com/Flixorui/flixor) | Universal, macOS 13+ | — |
+| [Flixor](https://github.com/Flixorui/flixor) | Apple Silicon, macOS 13+ | — |
 | [Fred TV](https://github.com/Fredolx/open-tv) | Universal; installs `mpv`, `ffmpeg` and `yt-dlp` | ARM64 / x86_64 |
 | [Paicord](https://github.com/llsc12/Paicord) | Universal, macOS 14+ | — |
 | [qBittorrent](https://www.qbittorrent.org/) | Universal, macOS 13+ | — |
@@ -53,7 +53,7 @@ Casks live in `Casks/<category>/`: `media/` holds FCast Sender, Flixor, Fred TV 
 
 - **qBittorrent** packages the standard stable desktop DMG (Qt 6/libtorrent 1.2), not the separate `qbittorrent-cli` client or `lt20` variant. Upstream signs the universal `qbittorrent.app` with its own self-issued certificate, not an Apple Developer ID, so the cask installs it as `qBittorrent.app` and removes quarantine after installation. Updates wait until the latest stable release includes the standard DMG. If migrating from Homebrew's disabled macOS cask, run `brew uninstall --cask homebrew/cask/qbittorrent` without `--zap`, then `brew install --cask edbfi/taps/qbittorrent` to preserve settings and torrent state.
 - **FCast Sender**'s upstream macOS DMG contains only an ARM64 main executable, so the cask doesn't support Intel Macs. The app is signed and notarized by FUTO, so no quarantine workaround is applied. Versions drop the pre-release suffix the upstream tag carries: `sender-0.0.3-beta` becomes `0.0.3`.
-- **Flixor** versions match upstream tags such as `beta2.4.0`. The app bundle is `FlixorMac.app`.
+- **Flixor** installs the signed and notarized `Flixor.app` from upstream’s stable macOS releases. The tag `macos-v1.9.6` becomes cask version `1.9.6`. Intel users can still download the last universal [beta2.4.0 DMG](https://github.com/edbfi/homebrew-taps/releases/download/flixor-latest/Flixor-beta2.4.0.dmg).
 - **Fred TV** depends on the `mpv`, `ffmpeg` and `yt-dlp` formulae, which Homebrew installs alongside it. Versions strip a leading `v` (`v1.9.1` becomes `1.9.1`).
 - **Paicord** uses the immutable upstream release belonging to the newest successful main build. Each cask version is `YYYY-MM-DD-<short sha>`; the release tag must match that exact build commit.
 
@@ -62,7 +62,7 @@ Casks live in `Casks/<category>/`: `media/` holds FCast Sender, Flixor, Fred TV 
 
 - **qView** is disabled in the official homebrew-cask repository because of a Gatekeeper check. This cask removes the `com.apple.quarantine` attribute after install, so the app launches without a manual `xattr`.
 
-Flixor, Fred TV, Paicord and qView are distributed unsigned upstream; each of those casks runs a `postflight_steps` block that strips the quarantine attribute from the installed app.
+Fred TV, Paicord and qView are distributed unsigned upstream; each of those casks runs a `postflight_steps` block that strips the quarantine attribute from the installed app.
 
 ## Install, update, uninstall
 

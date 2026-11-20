@@ -1,40 +1,36 @@
 #!/usr/bin/env bash
-# Resolver: Flixor.
-#
-# Reads /releases/latest (non-draft, non-prerelease). Upstream names its DMG
-# inconsistently, so exactly one .dmg asset is required, and it must live under the
-# release's own download path. Tags look like beta2.4.0 or 1.0.0.
-
+# Flixor publishes the desktop app and server in the same release feed.
 # shellcheck source=SCRIPTDIR/../../scripts/lib/common.sh
 source "$(dirname "$0")/../../scripts/lib/common.sh"
 load_pipeline "$(basename "$(cd "$(dirname "$0")" && pwd)")"
 : "${RESOLVE_OUT:?RESOLVE_OUT (output file) is required}"
 
-status="$(gh_api "repos/${UPSTREAM_REPO}/releases/latest" release.json)"
-if [[ "${status}" = "404" ]]
-then
-  log "No upstream release found."
-  kv "${RESOLVE_OUT}" skip true
-  exit 0 # resolvers run in a subshell; this ends only the resolver
-fi
-require_2xx "${status}" "fetching latest ${UPSTREAM_REPO} release" release.json
+releases="$(mktemp)"
+trap 'rm -f "${releases}"' EXIT
+page=1
+while true
+do
+  status="$(gh_api "repos/${UPSTREAM_REPO}/releases?per_page=100&page=${page}" "${releases}")"
+  require_2xx "${status}" "listing ${UPSTREAM_REPO} releases (page ${page})" "${releases}"
+  release="$(jq -c 'first(.[] | select(.draft == false and .prerelease == false)
+    | select(.tag_name | startswith("macos-v"))) // empty' "${releases}")"
+  [[ -z "${release}" ]] || break
+  [[ "$(jq length "${releases}")" -eq 100 ]] || die "No stable macos-v release found in ${UPSTREAM_REPO}."
+  page=$((page + 1))
+done
 
-tag="$(jq -r '.tag_name // empty' release.json)"
-[[ -n "${tag}" ]] || die "Latest release payload has no tag_name."
-
-tag_re='^[A-Za-z]*[0-9]+(\.[0-9]+)*$'
+tag="$(jq -r '.tag_name' <<<"${release}")"
+tag_re='^macos-v[0-9]+\.[0-9]+\.[0-9]+$'
 [[ "${tag}" =~ ${tag_re} ]] || die "Unexpected upstream tag format: ${tag}"
 
-count="$(jq '[.assets[] | select(.name | test("\\.dmg$"; "i"))] | length' release.json)"
-[[ "${count}" -eq 1 ]] || die "Expected exactly one Flixor DMG in ${tag}, found ${count}"
-download_url="$(jq -r '.assets[] | select(.name | test("\\.dmg$"; "i")) | .browser_download_url' release.json)"
-[[ -n "${download_url}" ]] || die "No DMG asset in upstream release ${tag}."
+version="${tag#macos-v}"
+name="Flixor-${version}.dmg"
+url="${UPSTREAM_URL}/releases/download/${tag}/${name}"
+jq -e --arg name "${name}" --arg url "${url}" '
+  [.assets[] | select(.name == $name)] | length == 1 and .[0].browser_download_url == $url
+' <<<"${release}" >/dev/null || die "Expected exactly one ${name} at ${url}"
 
-expected_prefix="https://github.com/${UPSTREAM_REPO}/releases/download/${tag}/"
-[[ "${download_url}" == "${expected_prefix}"* ]] || die "Unexpected DMG download URL: ${download_url}"
-rm -f release.json
-
-kv "${RESOLVE_OUT}" version "${tag}"
-kv "${RESOLVE_OUT}" download_url "${download_url}"
+kv "${RESOLVE_OUT}" version "${version}"
+kv "${RESOLVE_OUT}" download_url "${url}"
 kv "${RESOLVE_OUT}" ref "${tag}"
 kv "${RESOLVE_OUT}" changes_url "${UPSTREAM_URL}/releases/tag/${tag}"
