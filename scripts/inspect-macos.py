@@ -11,7 +11,7 @@ import tempfile
 
 APPS = {
     "fcast-sender": ("FCast Sender.app", "org.fcast.FCastSender", {"arm64"}),
-    "flixor": ("FlixorMac.app", "com.flixor.mac", {"arm64", "x86_64"}),
+    "flixor": ("Flixor.app", "com.flixor.mac", {"arm64"}),
     "fredtv": ("Fred TV.app", "dev.fredol.open-tv", {"arm64", "x86_64"}),
     "paicord": ("Paicord.app", "com.llsc12.Paicord", {"arm64", "x86_64"}),
     "qbittorrent": ("qbittorrent.app", "org.qbittorrent.qBittorrent", {"arm64", "x86_64"}),
@@ -38,8 +38,8 @@ def inspect(token, dmg):
             for path in app.rglob("*"):
                 if not path.is_file() or path.is_symlink():
                     continue
-                kind = subprocess.check_output(["file", "-b", str(path)], text=True)
-                if "Mach-O" not in kind:
+                kind = subprocess.check_output(["file", "-b", str(path)])
+                if b"Mach-O" not in kind:
                     continue
                 arches = set(subprocess.check_output(["lipo", "-archs", str(path)], text=True).split())
                 binaries[str(path.relative_to(app))] = sorted(arches)
@@ -47,7 +47,7 @@ def inspect(token, dmg):
                     raise ValueError(f"{path.relative_to(app)} lacks {required - arches}")
             if str(main.relative_to(app)) not in binaries:
                 raise ValueError("Main executable is not Mach-O")
-            if token == "fcast-sender":
+            if token in ("fcast-sender", "flixor"):
                 subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
                 subprocess.run(["spctl", "--assess", "--type", "execute", str(app)], check=True)
             print(json.dumps({"token": token, "bundle_id": identifier,

@@ -242,11 +242,38 @@ print(status, end="")
                               [200, {"tag_name": "v1.9.1", "assets": [{"name": "Fred.TV_1.9.1_arm64.dmg"}]}]})
         self.assertNotEqual(result.returncode, 0)
 
-    def test_flixor_rejects_ambiguous_assets(self):
-        result = self.resolve("flixor", {"https://api.github.com/repos/Flixorui/flixor/releases/latest":
-                              [200, {"tag_name": "beta2.4.0", "assets": [{"name": "a.dmg"}, {"name": "b.dmg"}]}]})
-        self.assertIn("Expected exactly one", result.stderr)
-        self.assertNotEqual(result.returncode, 0)
+    flixor_feed = "https://api.github.com/repos/Flixorui/flixor/releases?per_page=100&page="
+    flixor_url = "https://github.com/Flixorui/flixor/releases/download/macos-v1.9.6/Flixor-1.9.6.dmg"
+
+    def flixor_release(self, **overrides):
+        return {"tag_name": "macos-v1.9.6", "draft": False, "prerelease": False,
+                "assets": [{"name": "Flixor-1.9.6.dmg", "browser_download_url": self.flixor_url}],
+                **overrides}
+
+    def test_flixor_resolves_stable_desktop_release_across_pages(self):
+        first_page = [self.flixor_release(tag_name="server-v1.2.0")] * 98
+        first_page += [self.flixor_release(draft=True), self.flixor_release(prerelease=True)]
+        release = self.flixor_release()
+        release["assets"].append({"name": "Flixor-1.9.6.sha256"})
+        result = self.resolve("flixor", {
+            self.flixor_feed + "1": [200, first_page],
+            self.flixor_feed + "2": [200, [release, self.flixor_release(tag_name="beta2.4.0")]],
+        })
+        self.assertEqual(result.returncode, 0, result.stderr)
+        fields = dict(line.split("=", 1) for line in result.stdout.splitlines())
+        self.assertEqual(fields["version"], "1.9.6")
+        self.assertEqual(fields["ref"], "macos-v1.9.6")
+        self.assertEqual(fields["asset"], "Flixor-1.9.6.dmg")
+        self.assertEqual(fields["download_url"], self.flixor_url)
+
+    def test_flixor_rejects_missing_duplicate_or_mismatched_dmg(self):
+        asset = self.flixor_release()["assets"][0]
+        for assets in ([], [asset, asset], [{**asset, "name": "FlixorMac.dmg"}],
+                       [{**asset, "browser_download_url": self.flixor_url.replace("v1.9.6", "v1.9.5")}]):
+            with self.subTest(assets=assets):
+                result = self.resolve("flixor", {self.flixor_feed + "1": [200, [self.flixor_release(assets=assets)]]})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Expected exactly one", result.stderr)
 
     def test_sender_delayed_cdn_is_skip(self):
         result = self.resolve("fcast-sender", {
